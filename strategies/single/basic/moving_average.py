@@ -2,7 +2,7 @@
 
 import pandas as pd
 
-from .base import BaseStrategy
+from strategies.base import BaseStrategy
 
 
 class MACrossover(BaseStrategy):
@@ -33,7 +33,7 @@ class MACrossover(BaseStrategy):
 
 
 if __name__ == "__main__":
-    from data import fetch_ohlcv
+    from data.fetch import fetch_ohlcv
 
     df = fetch_ohlcv(since="2024-01-01", until="2024-03-01")
     strategy = MACrossover(fast_period=20, slow_period=50)
