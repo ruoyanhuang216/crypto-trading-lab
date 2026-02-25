@@ -1,0 +1,10 @@
+exchange: okx
+
+defaults:
+  symbol: BTC/USDT
+  timeframe: 1h
+  limit: 1000  # number of candles to fetch
+
+backtest:
+  fee: 0.001      # 0.1% per trade
+  slippage: 0.0005

@@ -1,0 +1,8 @@
+ccxt
+pandas
+numpy
+optuna
+matplotlib
+plotly
+pyarrow
+jupyter
