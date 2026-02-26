@@ -1,7 +1,7 @@
 # Roadmap
 
 Current priority list. Updated at the end of each session.
-_Last updated: 2026-02-25_
+_Last updated: 2026-02-25 (EOD)_
 
 ---
 
@@ -18,6 +18,14 @@ not a regime filter. A long-only variant (only buy oversold dips, never short ov
 combined with a high-level trend switch (e.g. 200-bar MA) may preserve the ranging-market
 edge while avoiding bull-run losses.
 **Effort:** Low — small extension to `bollinger_bands.py` or a notebook experiment.
+
+### P1b. Long-only MeanReversion variant ← NEW
+**Why:** F5 showed filters cannot fix MeanReversion in a bull market at the bar level.
+The structural fix is directional bias: only take long signals (buy oversold dips),
+combined with a high-level trend switch (e.g. 200-bar MA — if price is above the 200MA,
+go long-only; if below, go short-only or flat). This preserves ranging-market edge
+while avoiding shorting a bull run.
+**Effort:** Low — notebook experiment first, no strategy code changes yet.
 
 ### P2. Implement volatility signals
 **Why:** BB width and ATR are direct inputs for position sizing and regime detection.
