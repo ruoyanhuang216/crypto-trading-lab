@@ -33,6 +33,33 @@ strategies instead (sit out when strongly trending), where the logic is aligned.
 
 ---
 
+## F4 — BollingerMeanReversion is period-dependent, not structurally robust
+**Date:** 2026-02-25 | **Ref:** [2026-02-25-p1](daily/2026-02-25-p1.md)
+
+MeanReversion returned -9.1% over Jan–Jun 2024 vs +15.9% over Jan–Mar 2024.
+The Q2 2024 BTC bull run (42k → 70k) caused repeated short losses on overbought
+signals that never reversed. The Jan–Mar result (F1) was period-specific, not structural.
+
+**Implication:** strategy results must always be validated across multiple time windows
+before drawing conclusions. Walk-forward testing (P4) is essential.
+
+---
+
+## F5 — Trend filters did NOT improve BollingerMeanReversion (hypothesis rejected)
+**Date:** 2026-02-25 | **Ref:** [2026-02-25-p1](daily/2026-02-25-p1.md)
+
+Applying ADX ranging and slope filters to MeanReversion made performance worse, not better.
+In a strongly trending bull market, the strategy loses on almost every trade regardless
+of regime — filtering reduces trade count but does not fix the core directional failure.
+
+**Exception:** the `ADX + aligned` combined filter reduced max drawdown (-11.9% vs -17.1%),
+suggesting some value for risk management even when it cannot fix returns.
+
+**Implication:** the correct fix for MeanReversion in a bull market is directional bias
+(long-only mode) or a high-level regime switch, not a bar-by-bar filter.
+
+---
+
 ## F3 — Trend signals have sub-random directional accuracy at 1h
 **Date:** 2026-02-25 | **Ref:** [2026-02-25](daily/2026-02-25.md)
 

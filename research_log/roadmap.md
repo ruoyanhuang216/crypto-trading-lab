@@ -1,17 +1,31 @@
 # Roadmap
 
 Current priority list. Updated at the end of each session.
-_Last updated: 2026-02-25_
+_Last updated: 2026-02-25 (EOD)_
 
 ---
 
 ## Now — High Priority
 
-### P1. Apply trend filters to MeanReversion (not Breakout)
-**Why:** F2 showed filters hurt Breakout due to lag mismatch. The natural use case
-is the opposite: filter *out* trending regimes from a mean-reversion strategy.
-Apply `ADXTrend` (sit out when ADX > 25) to `BollingerMeanReversion` and compare.
-**Effort:** Low — all code exists, just a new notebook cell or short script.
+### ~~P1. Apply trend filters to MeanReversion~~ ✅ COMPLETE — hypothesis rejected
+Filters hurt MeanReversion in Jan–Jun 2024, same as Breakout. Root cause: in a bull
+market the strategy fails on almost every trade regardless of regime. Bar-by-bar filters
+cannot fix a structural directional mismatch. See F4, F5, [2026-02-25-p1](daily/2026-02-25-p1.md).
+
+### P1b. Long-only MeanReversion variant ← NEW
+**Why:** F5 suggests the fix for MeanReversion in a bull market is directional bias,
+not a regime filter. A long-only variant (only buy oversold dips, never short overbought)
+combined with a high-level trend switch (e.g. 200-bar MA) may preserve the ranging-market
+edge while avoiding bull-run losses.
+**Effort:** Low — small extension to `bollinger_bands.py` or a notebook experiment.
+
+### P1b. Long-only MeanReversion variant ← NEW
+**Why:** F5 showed filters cannot fix MeanReversion in a bull market at the bar level.
+The structural fix is directional bias: only take long signals (buy oversold dips),
+combined with a high-level trend switch (e.g. 200-bar MA — if price is above the 200MA,
+go long-only; if below, go short-only or flat). This preserves ranging-market edge
+while avoiding shorting a bull run.
+**Effort:** Low — notebook experiment first, no strategy code changes yet.
 
 ### P2. Implement volatility signals
 **Why:** BB width and ATR are direct inputs for position sizing and regime detection.
@@ -28,8 +42,9 @@ BB width in particular pairs naturally with the existing Bollinger strategies
 bars have less noise — same signals may have genuine predictive power at 4h/daily.
 **Effort:** Low — change `timeframe` in config and re-run the existing notebook.
 
-### P4. Walk-forward / train-test split in backtesting
-**Why:** All results so far are in-sample. Before trusting any strategy, need
+### P4. Walk-forward / train-test split in backtesting ← ELEVATED PRIORITY
+**Why:** F4 showed results are highly period-dependent — Jan–Mar vs Jan–Jun 2024 gave
+completely opposite conclusions for MeanReversion. Cannot trust any result without
 out-of-sample validation. Add a walk-forward engine to `backtesting/`.
 **Files:** `backtesting/walk_forward.py`
 
