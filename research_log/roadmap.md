@@ -1,7 +1,7 @@
 # Roadmap
 
 Current priority list. Updated at the end of each session.
-_Last updated: 2026-02-25 (EOD)_
+_Last updated: 2026-02-27 (EOD)_
 
 ---
 
@@ -42,11 +42,11 @@ BB width in particular pairs naturally with the existing Bollinger strategies
 bars have less noise — same signals may have genuine predictive power at 4h/daily.
 **Effort:** Low — change `timeframe` in config and re-run the existing notebook.
 
-### P4. Walk-forward / train-test split in backtesting ← ELEVATED PRIORITY
-**Why:** F4 showed results are highly period-dependent — Jan–Mar vs Jan–Jun 2024 gave
-completely opposite conclusions for MeanReversion. Cannot trust any result without
-out-of-sample validation. Add a walk-forward engine to `backtesting/`.
-**Files:** `backtesting/walk_forward.py`
+### ~~P4. Walk-forward / train-test split in backtesting~~ ✅ COMPLETE
+Walk-forward engine implemented in `backtesting/walk_forward.py`.
+Exports `walk_forward()`, `WalkForwardResult`, `WindowResult`.
+Notebook `notebooks/walk_forward_backtest.ipynb` validates BollingerMeanReversion
+and BollingerBreakout across 5 rolling OOS windows on full-year 2024 BTC/USDT 1h data.
 
 ---
 
