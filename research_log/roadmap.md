@@ -1,7 +1,7 @@
 # Roadmap
 
 Current priority list. Updated at the end of each session.
-_Last updated: 2026-02-27 (EOD)_
+_Last updated: 2026-02-27_
 
 ---
 
@@ -12,20 +12,13 @@ Filters hurt MeanReversion in Jan–Jun 2024, same as Breakout. Root cause: in a
 market the strategy fails on almost every trade regardless of regime. Bar-by-bar filters
 cannot fix a structural directional mismatch. See F4, F5, [2026-02-25-p1](daily/2026-02-25-p1.md).
 
-### P1b. Long-only MeanReversion variant ← NEW
-**Why:** F5 suggests the fix for MeanReversion in a bull market is directional bias,
-not a regime filter. A long-only variant (only buy oversold dips, never short overbought)
-combined with a high-level trend switch (e.g. 200-bar MA) may preserve the ranging-market
-edge while avoiding bull-run losses.
-**Effort:** Low — small extension to `bollinger_bands.py` or a notebook experiment.
-
-### P1b. Long-only MeanReversion variant ← NEW
-**Why:** F5 showed filters cannot fix MeanReversion in a bull market at the bar level.
-The structural fix is directional bias: only take long signals (buy oversold dips),
-combined with a high-level trend switch (e.g. 200-bar MA — if price is above the 200MA,
-go long-only; if below, go short-only or flat). This preserves ranging-market edge
-while avoiding shorting a bull run.
-**Effort:** Low — notebook experiment first, no strategy code changes yet.
+### ~~P1b. Long-only MeanReversion variant~~ ✅ COMPLETE — F6 logged
+**Finding F6:** Directional bias reduces losses but does not create alpha in a bull market.
+- LongOnly: WF Sharpe −0.18, Return −3.6% (vs Baseline −1.12, −20.6%) — clearly better
+- TrendFiltered (200MA): WF Sharpe −0.93, barely trades (only 284/8785 bars active); MaxDD best at −12.1%
+- None profitable on walk-forward basis over full 2024; signal scarcity (5.7% of bars touch lower band) is the root constraint
+- **Action:** Promote `BollingerLongOnly` to `strategies/single/basic/`; park TrendFiltered for P5
+See `notebooks/p1b_longonly_meanreversion.ipynb`.
 
 ### P2. Implement volatility signals
 **Why:** BB width and ATR are direct inputs for position sizing and regime detection.
