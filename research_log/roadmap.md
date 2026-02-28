@@ -28,6 +28,24 @@ BB width in particular pairs naturally with the existing Bollinger strategies
 
 ---
 
+## ML Track — new direction
+
+### P-ML1. Feature engineering & IC analysis ✅ COMPLETE — F7 logged
+`ml/` module built: `ml/features/` (technical, lag, time), `ml/labels/` (returns, direction).
+34 features × 5 timeframes IC-analysed. Key findings:
+- Mean reversion dominates at 1h (bar_ret IC=−0.081)
+- Daily IC 70% higher than hourly (0.041 vs 0.024); upper_wick IC=0.165 at 1d
+- Raw returns show no autocorrelation; squared returns show strong GARCH clustering
+- 12-feature set recommended for LightGBM (drop redundant oscillator/volatility duplicates)
+See `notebooks/ml_feature_engineering.ipynb`.
+
+### P-ML2. LightGBM baseline model
+**Target:** 1d forward log-return; **Features:** 12-feature set from F7;
+**Validation:** purged walk-forward (5 folds, 1-day embargo);
+**Success criterion:** OOS IC > 0.03 consistently across folds.
+
+---
+
 ## Next — Medium Priority
 
 ### P3. Test signals on longer timeframes (4h, daily)

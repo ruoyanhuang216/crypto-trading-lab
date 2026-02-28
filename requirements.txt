@@ -6,3 +6,6 @@ matplotlib
 plotly
 pyarrow
 jupyter
+scipy
+statsmodels
+lightgbm
