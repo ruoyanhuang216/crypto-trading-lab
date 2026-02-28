@@ -60,6 +60,52 @@ suggesting some value for risk management even when it cannot fix returns.
 
 ---
 
+## F6 — Long-only MeanReversion reduces losses but does not create alpha in a bull market
+**Date:** 2026-02-28 | **Ref:** [2026-02-28](daily/2026-02-28.md) | **Notebook:** `p1b_longonly_meanreversion.ipynb`
+
+Three variants of BollingerMeanReversion tested on full-year 2024 BTC/USDT 1h via walk-forward (5 rolling folds):
+
+| Variant | WF Sharpe | WF Return | Max DD |
+|---|---|---|---|
+| Baseline (long+short) | −1.12 | −20.6% | −33.5% |
+| **LongOnly** | **−0.18** | **−3.6%** | −18.9% |
+| TrendFiltered (200MA) | −0.93 | −7.0% | −12.1% |
+
+Removing short signals eliminates 5× the losses. TrendFiltered reduces MaxDD further but barely
+trades (284 vs 1040 active bars with MA=200). Signal scarcity (5.7% of bars touch lower band)
+is the binding constraint — not direction.
+
+**Implication:** LongOnly is strictly better than baseline for bull-market deployment.
+No variant is profitable on a WF basis in 2024 — the mean-reversion edge is too small
+to overcome a strong trending year. Promote `BollingerLongOnly` to strategies module.
+
+---
+
+## F7 — IC analysis: mean reversion dominates at 1h; daily timeframe has strongest signal
+**Date:** 2026-02-28 | **Ref:** [2026-02-28](daily/2026-02-28.md) | **Notebook:** `ml_feature_engineering.ipynb`
+
+34 features × 5 timeframes (5m, 15m, 1h, 4h, 1d) analysed via Spearman IC against 1-bar-ahead forward return.
+
+**Top features at 1h (all negative — mean reversion):**
+- `bar_ret` / `ret_lag1`: IC = −0.081 (current bar return predicts reversal)
+- `stoch_k`: IC = −0.063 | `bb_zscore`: IC = −0.049 | `rsi`: IC = −0.045
+
+**IC by timeframe (mean |IC|):** 5m=0.015 → 15m=0.020 → 1h=0.024 → 4h=0.024 → **1d=0.041**
+
+Daily IC is 70% higher than hourly. `upper_wick` at 1d reaches IC = 0.165 — best
+single-feature signal found. **Model building should target 1d data.**
+
+**Structural findings:**
+- Raw returns: no autocorrelation (Ljung-Box p > 0.05) — consistent with weak-form EMH
+- Squared returns: strong GARCH clustering (p ≈ 0) — volatility is predictable, direction is not
+- 27 highly correlated feature pairs; `ret_lag1` = `bar_ret` exactly (|r| = 1.0)
+- Recommended 12-feature set for LightGBM (deduplicated oscillator + volatility groups)
+
+**Implication:** Skip 5m modelling. Start LightGBM on 1d data (P-ML2) targeting forward
+log-return regression with purged walk-forward CV.
+
+---
+
 ## F3 — Trend signals have sub-random directional accuracy at 1h
 **Date:** 2026-02-25 | **Ref:** [2026-02-25](daily/2026-02-25.md)
 

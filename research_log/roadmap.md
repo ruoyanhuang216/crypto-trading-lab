@@ -1,7 +1,7 @@
 # Roadmap
 
 Current priority list. Updated at the end of each session.
-_Last updated: 2026-02-27_
+_Last updated: 2026-02-28 (EOD)_
 
 ---
 
