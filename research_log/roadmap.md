@@ -47,6 +47,14 @@ learns mean-reversion but inverts in bull trends (Fold 3 IC=−0.224, p<0.05). L
 equity −32.4% vs B&H +299.6%. Next: regime detection as meta-feature (P-ML3).
 See `notebooks/ml_baseline_models.ipynb`.
 
+### ~~P-ML3. Regime-aware LightGBM~~ ✅ COMPLETE — F9 logged
+Three experiments on baseline LightGBM (P-ML2) with regime labels (SMA200 + ADX>25):
+- **Exp-A** (regime as feature): marginal improvement — Mean IC −0.040 vs −0.049
+- **Exp-B** (flip signal in bull): equity **+33.2% (Sharpe +0.482)** — first positive OOS equity
+- **Exp-C** (skip bull entirely): equity **+8.8% (Sharpe +0.280)** — conservative positive result
+Key insight: Exp-C is the first deployable-quality signal; Exp-B overfits to regime boundary.
+See `ml/regime/classifier.py`, `notebooks/ml_regime_model.ipynb`, F9.
+
 ---
 
 ## Next — Medium Priority
