@@ -1,7 +1,7 @@
 # Roadmap
 
 Current priority list. Updated at the end of each session.
-_Last updated: 2026-03-01_
+_Last updated: 2026-03-02_
 
 ---
 
@@ -47,14 +47,6 @@ learns mean-reversion but inverts in bull trends (Fold 3 IC=−0.224, p<0.05). L
 equity −32.4% vs B&H +299.6%. Next: regime detection as meta-feature (P-ML3).
 See `notebooks/ml_baseline_models.ipynb`.
 
-### ~~P-ML4. Regime-specific LightGBM models~~ ✅ COMPLETE — F10 logged
-`RegimeEnsemble` trains bull + non-bull `LGBMForecaster` per fold; routes predictions by regime.
-**Result:** Bull model IC stays negative (−0.138 to −0.044) — fails to learn trend continuation
-on only 128–136 bull training bars. P-ML4 equity = −2.5% (Sharpe +0.227), slightly below
-P-ML3 Exp-C (+8.8%, Sharpe +0.280). Hypothesis: need more bull training data (extend to 2019)
-or longer horizon (3–5d) for the bull model to learn momentum.
-See `ml/models/ensemble.py`, `notebooks/ml_regime_specific_models.ipynb`, F10.
-
 ### ~~P-ML3. Regime-aware LightGBM~~ ✅ COMPLETE — F9 logged
 Three experiments on baseline LightGBM (P-ML2) with regime labels (SMA200 + ADX>25):
 - **Exp-A** (regime as feature): marginal improvement — Mean IC −0.040 vs −0.049
@@ -62,6 +54,14 @@ Three experiments on baseline LightGBM (P-ML2) with regime labels (SMA200 + ADX>
 - **Exp-C** (skip bull entirely): equity **+8.8% (Sharpe +0.280)** — conservative positive result
 Key insight: Exp-C is the first deployable-quality signal; Exp-B overfits to regime boundary.
 See `ml/regime/classifier.py`, `notebooks/ml_regime_model.ipynb`, F9.
+
+### ~~P-ML4. Regime-specific LightGBM models~~ ✅ COMPLETE — F10 logged
+`RegimeEnsemble` trains bull + non-bull `LGBMForecaster` per fold; routes predictions by regime.
+**Result:** Bull model IC stays negative (−0.138 to −0.044) — fails to learn trend continuation
+on only 128–136 bull training bars. P-ML4 equity = −2.5% (Sharpe +0.227), slightly below
+P-ML3 Exp-C (+8.8%, Sharpe +0.280). Hypothesis: need more bull training data (extend to 2019)
+or longer horizon (3–5d) for the bull model to learn momentum.
+See `ml/models/ensemble.py`, `notebooks/ml_regime_specific_models.ipynb`, F10.
 
 ---
 
