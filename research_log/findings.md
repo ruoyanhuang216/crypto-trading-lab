@@ -5,6 +5,39 @@ Each entry references the daily log where it was first observed.
 
 ---
 
+## F10 — Regime-specific models fail to learn trend continuation on 3yr data
+**Date:** 2026-03-01 | **Notebook:** `ml_regime_specific_models.ipynb`
+
+`RegimeEnsemble` trains separate `LGBMForecaster` for bull and non-bull (bear+ranging) bars.
+Bull model available in Folds 3–5 (128–136 bull training bars); Folds 1–2 fall back to sign-flip.
+
+**Per-fold IC:**
+
+| Fold | Period | Non-bull IC | Bull IC | P-ML4 IC | Bull model? |
+|---|---|---|---|---|---|
+| 1 | Jul 2022–Jan 2023 | −0.066 | +1.00† | −0.051 | FALLBACK |
+| 2 | Jan 2023–Jul 2023 | −0.017 | −0.162 | −0.053 | FALLBACK |
+| 3 | Jul 2023–Jan 2024 | −0.131 | −0.138 | −0.148 | YES |
+| 4 | Jan 2024–Jul 2024 | −0.087 | −0.063 | −0.056 | YES |
+| 5 | Jul 2024–Dec 2024 | +0.042 | −0.044 | −0.003 | YES |
+
+†Fold 1 bull: only 2 test bars, degenerate.
+
+**Equity:** Baseline −30.2% → **P-ML4 −2.5% (Sharpe +0.227)** → P-ML3 Exp-C +8.8% (Sharpe +0.280)
+
+**Root cause:** Bull model IC remains negative in all 3 fitted folds. With 128–136 bull
+training bars and 1-day horizon, the model learns the same mean-reversion pattern as the
+non-bull model, not trend continuation. P-ML3 Exp-C (skip bull) still wins — it avoids
+deploying a broken bull model.
+
+**Feature importance:** `atr_pct` importance drops sharply in bull model (20 vs 114 for non-bull),
+but `di_diff`/`adx` don't increase enough to indicate trend-following was learned.
+
+**Implication:** More training data (extend to 2019, 6yr) or longer bull horizon (3–5d)
+required before a separate bull model can consistently outperform regime-gating.
+
+---
+
 ## F9 — Regime-aware interventions produce first positive OOS equity
 **Date:** 2026-03-01 | **Notebook:** `ml_regime_model.ipynb`
 
