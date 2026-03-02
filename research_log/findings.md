@@ -5,6 +5,34 @@ Each entry references the daily log where it was first observed.
 
 ---
 
+## F9 — Regime-aware interventions produce first positive OOS equity
+**Date:** 2026-03-01 | **Notebook:** `ml_regime_model.ipynb`
+
+`RegimeClassifier` (SMA200 + ADX>25) classifies 1,075 daily bars into:
+bull=31.9%, ranging=50.5%, bear=17.6%.
+
+Three experiments on the P-ML2 LightGBM baseline (purged WF, 5 folds, 3yr daily BTC):
+
+| Approach | Mean IC | ICIR | Return | Sharpe | MaxDD |
+|---|---|---|---|---|---|
+| Baseline (P-ML2) | −0.049 | −0.488 | −30.2% | −0.046 | −76.1% |
+| Exp-A (regime feat) | −0.040 | −0.364 | −28.3% | −0.023 | −76.1% |
+| **Exp-B (flip in bull)** | **−0.015** | **−0.282** | **+33.2%** | **+0.482** | **−46.0%** |
+| **Exp-C (skip bull)** | — | — | **+8.8%** | **+0.280** | **−49.8%** |
+| Buy-and-Hold | — | — | +299.6% | +1.379 | −35.4% |
+
+**IC-by-regime (§4):** Most features don't flip sign between bull and bear — they weaken.
+Strongest sign-flippers: `vol_log_chg` (bear=+0.125 vs bull=−0.021) and `di_diff`
+(bear=−0.114 vs bull=+0.027). `bar_ret` consistently negative across all regimes.
+
+**Exp-B caveat:** Signal flip hurts Fold 2 (bull-heavy recovery where model was correct).
+The model is not always wrong in bull — only when trend is sustained and strong.
+
+**Implication:** Exp-C (regime-gated) is the first deployable strategy with positive OOS
+Sharpe. Next step: P-ML4 — separate bull/non-bull models.
+
+---
+
 ## F1 — MeanReversion outperforms Breakout on 1h BTC (Jan–Jun 2024)
 **Date:** 2026-02-25 | **Ref:** [2026-02-25](daily/2026-02-25.md)
 
