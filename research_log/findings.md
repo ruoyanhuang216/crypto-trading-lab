@@ -106,6 +106,37 @@ log-return regression with purged walk-forward CV.
 
 ---
 
+## F8 — LightGBM IC is regime-sensitive and sign-unstable on 1d BTC
+**Date:** 2026-03-01 | **Ref:** [2026-02-28](daily/2026-02-28.md) | **Notebook:** `ml_baseline_models.ipynb`
+
+LightGBM regressor trained on 12-feature set (F7), evaluated via purged walk-forward
+(5 folds, 3 years daily BTC/USDT 2022–2024, purge=1 bar).
+
+**Per-fold OOS IC:**
+
+| Fold | Period | Regime | IC | Hit rate | Significant? |
+|---|---|---|---|---|---|
+| 1 | Jul 2022 – Jan 2023 | Bear | −0.074 | 0.514 | No |
+| 2 | Jan 2023 – Jul 2023 | Recovery | +0.044 | 0.564 | No |
+| 3 | Jul 2023 – Jan 2024 | Recovery→Bull | **−0.224** | 0.413 | **Yes (p<0.05)** |
+| 4 | Jan 2024 – Jul 2024 | Bull | +0.049 | 0.486 | No |
+| 5 | Jul 2024 – Dec 2024 | Bull | −0.039 | 0.508 | No |
+
+**Aggregate:** Mean IC=−0.049, ICIR=−0.488, Pooled OOS IC=−0.017
+
+**Equity:** LightGBM −32.4% (Sharpe −0.075, MaxDD −76.8%) vs B&H +299.6%
+
+**Top features:** `vol_log_chg` (185), `adx` (174), `upper_wick` (169), `bb_width` (149)
+
+**Root cause of failure:** IC sign alternates across regimes. The model learns mean-reversion
+(negative-IC features from F7) which works in bear/ranging but inverts in strong bull trends.
+Fold 3 is statistically significant (p<0.05) — the model has skill but in the wrong direction.
+
+**Implication:** Regime detection is prerequisite for deployment. Next step: P-ML3 — add a
+regime classifier (bull/bear/ranging) as meta-feature or fold-selection gate.
+
+---
+
 ## F3 — Trend signals have sub-random directional accuracy at 1h
 **Date:** 2026-02-25 | **Ref:** [2026-02-25](daily/2026-02-25.md)
 

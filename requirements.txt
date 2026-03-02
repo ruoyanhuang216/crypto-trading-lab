@@ -9,3 +9,4 @@ jupyter
 scipy
 statsmodels
 lightgbm
+scikit-learn

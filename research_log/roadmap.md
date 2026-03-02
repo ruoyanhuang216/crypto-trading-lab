@@ -1,7 +1,7 @@
 # Roadmap
 
 Current priority list. Updated at the end of each session.
-_Last updated: 2026-02-28 (EOD)_
+_Last updated: 2026-03-01_
 
 ---
 
@@ -39,10 +39,13 @@ BB width in particular pairs naturally with the existing Bollinger strategies
 - 12-feature set recommended for LightGBM (drop redundant oscillator/volatility duplicates)
 See `notebooks/ml_feature_engineering.ipynb`.
 
-### P-ML2. LightGBM baseline model
+### ~~P-ML2. LightGBM baseline model~~ ✅ COMPLETE — F8 logged
 **Target:** 1d forward log-return; **Features:** 12-feature set from F7;
-**Validation:** purged walk-forward (5 folds, 1-day embargo);
-**Success criterion:** OOS IC > 0.03 consistently across folds.
+**Validation:** purged walk-forward (5 folds, purge=1 bar).
+Key finding: Mean IC=−0.049, ICIR=−0.488. IC **sign-unstable** across regimes — model
+learns mean-reversion but inverts in bull trends (Fold 3 IC=−0.224, p<0.05). LightGBM
+equity −32.4% vs B&H +299.6%. Next: regime detection as meta-feature (P-ML3).
+See `notebooks/ml_baseline_models.ipynb`.
 
 ---
 
