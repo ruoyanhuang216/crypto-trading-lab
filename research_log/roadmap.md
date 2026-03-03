@@ -20,11 +20,11 @@ cannot fix a structural directional mismatch. See F4, F5, [2026-02-25-p1](daily/
 - **Action:** Promote `BollingerLongOnly` to `strategies/single/basic/`; park TrendFiltered for P5
 See `notebooks/p1b_longonly_meanreversion.ipynb`.
 
-### P2. Implement volatility signals
-**Why:** BB width and ATR are direct inputs for position sizing and regime detection.
-BB width in particular pairs naturally with the existing Bollinger strategies
-(compressing bands = pre-breakout setup).
-**Files:** `signals/volatility/bb_width.py`, `signals/volatility/atr.py`
+### ~~P2. Implement volatility signals~~ ✅ COMPLETE
+`BBWidth` and `ATRVolatility` added to `signals/volatility/`.
+- `BBWidth(period, num_std)` → `bb_width = (upper−lower)/mid` (dimensionless squeeze indicator)
+- `ATRVolatility(period)` → `atr_pct = ATR/close` (normalised bar volatility)
+Both formulas match `ml/features/technical.py` exactly for cross-layer consistency.
 
 ---
 
