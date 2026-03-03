@@ -63,6 +63,15 @@ P-ML3 Exp-C (+8.8%, Sharpe +0.280). Hypothesis: need more bull training data (ex
 or longer horizon (3–5d) for the bull model to learn momentum.
 See `ml/models/ensemble.py`, `notebooks/ml_regime_specific_models.ipynb`, F10.
 
+### ~~P-ML5. Extended dataset for regime-specific models~~ ✅ COMPLETE — F12 logged
+Extended dataset from 3yr (2022–2025) to **6yr (2019–2025)** giving 2,171 bars.
+**Result:** Bull model IC flips positive in 3/4 fitted folds (Mean IC +0.021 vs P-ML4 −0.102).
+P-ML5 equity **+630.2% (Sharpe +0.927, MaxDD −68.0%)** — dramatically outperforms P-ML4 (−2.5%)
+and P-ML3 Exp-C (+8.8%). OOS covers 2020–2025 including the 2020–21 BTC bull run.
+Bull bar multiplier: 2.0× vs P-ML4 (787 vs 398 total training bull bars across folds).
+Hypothesis **confirmed**: more bull training data fixes the IC sign.
+See `notebooks/p_ml5_extended_dataset.ipynb`, F12.
+
 ---
 
 ## Next — Medium Priority
