@@ -1,7 +1,7 @@
 # Roadmap
 
 Current priority list. Updated at the end of each session.
-_Last updated: 2026-03-03_
+_Last updated: 2026-03-03 (P3 notebook created)_
 
 ---
 
@@ -67,10 +67,11 @@ See `ml/models/ensemble.py`, `notebooks/ml_regime_specific_models.ipynb`, F10.
 
 ## Next — Medium Priority
 
-### P3. Test signals on longer timeframes (4h, daily)
+### ~~P3. Test signals on longer timeframes (4h, daily)~~ ✅ COMPLETE — F11 logged
 **Why:** F3 showed trend signals have sub-random accuracy at 1h. Lower-frequency
 bars have less noise — same signals may have genuine predictive power at 4h/daily.
-**Effort:** Low — change `timeframe` in config and re-run the existing notebook.
+Notebook: `notebooks/p3_signals_timeframe_comparison.ipynb`.
+Dataset: 2022-01-01 → 2025-01-01 (3yr). See F11 for results.
 
 ### ~~P4. Walk-forward / train-test split in backtesting~~ ✅ COMPLETE
 Walk-forward engine implemented in `backtesting/walk_forward.py`.

@@ -5,6 +5,47 @@ Each entry references the daily log where it was first observed.
 
 ---
 
+## F11 — Longer timeframes do NOT rescue ADXTrend / MASlopeTrend directional accuracy
+**Date:** 2026-03-03 | **Notebook:** `p3_signals_timeframe_comparison.ipynb`
+
+Hypothesis (from F3): sub-random accuracy at 1h is due to noise; 4h/1d bars should yield
+genuine predictive power for `ADXTrend` and `MASlopeTrend`.
+
+**Results — accuracy at h=1 and Spearman IC vs 1-bar forward log-return:**
+
+| Signal | Timeframe | Acc (h=1) | IC | p-value | Verdict |
+|---|---|---|---|---|---|
+| ADXTrend | 1h | 0.481 | −0.0191 | 0.074 | Sub-random |
+| ADXTrend | 4h | 0.500 | +0.0093 | 0.449 | Weak (not significant) |
+| ADXTrend | 1d | 0.491 | +0.0014 | 0.963 | Sub-random |
+| MASlopeTrend | 1h | 0.480 | −0.0209 | 0.050 | Sub-random |
+| MASlopeTrend | 4h | 0.504 | +0.0101 | 0.415 | Weak (not significant) |
+| MASlopeTrend | 1d | 0.480 | −0.0203 | 0.502 | Sub-random |
+
+Dataset: BTC/USDT 2022-01-01→2025-01-01 for 4h/1d (~6,577 / ~1,097 bars);
+1h data limited to 2024-01-01→2025-01-01 (~8,785 bars) due to cache.
+
+**Key findings:**
+- **Hypothesis partially confirmed at 4h only:** both signals flip from negative IC
+  (1h) to weakly positive IC at 4h (+0.009 / +0.010), and accuracy nudges above 0.50.
+  However, p-values (~0.42–0.45) are far from significance — the improvement is noise.
+- **1d is worse than 4h:** accuracy drops back below 0.50 and IC collapses near zero.
+  Reduced sample size (~1,097 bars) also widens confidence intervals.
+- **ADX threshold sweep at 1d (15→35):** tighter thresholds (higher ADX) reduce
+  coverage from ~60% to ~35% without any consistent accuracy improvement.
+  No threshold rescues the signal at daily granularity.
+
+**Conclusion:** Hypothesis **rejected**. Lower timeframes do not produce meaningful
+predictive power for these trend signals on BTC/USDT. The signals remain best used as
+**regime classifiers** (trending vs ranging), not as directional forecasters at any timeframe.
+
+**Implication for ML track:** Confirms that `trend_dir` as a raw feature is a poor
+directional predictor. The regime-classifier role (ADX+SMA200 gate in P-ML3 Exp-C)
+remains the recommended use. Discretionary direction forecasting should rely on
+the full 12-feature ML model (F7/F8/F9) rather than these heuristic signals.
+
+---
+
 ## F10 — Regime-specific models fail to learn trend continuation on 3yr data
 **Date:** 2026-03-01 | **Notebook:** `ml_regime_specific_models.ipynb`
 
