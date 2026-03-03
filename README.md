@@ -25,9 +25,12 @@ crypto-trading-lab/
 │
 ├── signals/
 │   ├── base.py                   # BaseSignal: compute(df) → df with indicator cols
-│   └── trend/
-│       ├── adx.py                # ADXTrend (trend strength + direction)
-│       └── ma_slope.py           # MASlopeTrend (moving-average slope)
+│   ├── trend/
+│   │   ├── adx.py                # ADXTrend (trend strength + direction)
+│   │   └── ma_slope.py           # MASlopeTrend (moving-average slope)
+│   └── volatility/
+│       ├── bb_width.py           # BBWidth (Bollinger Band squeeze ratio)
+│       └── atr.py                # ATRVolatility (normalised Average True Range)
 │
 ├── backtesting/
 │   ├── metrics.py                # compute_metrics(equity) → Sharpe, Sortino, MaxDD, etc.
@@ -94,7 +97,9 @@ Current strategies:
 `BaseSignal.compute(df)` → returns `df` with indicator columns appended. Signals describe
 market conditions; they are inputs to strategies, not trading decisions.
 
-Current signals: `ADXTrend`, `MASlopeTrend`.
+Current signals:
+- **Trend:** `ADXTrend`, `MASlopeTrend`
+- **Volatility:** `BBWidth` (band squeeze ratio), `ATRVolatility` (normalised ATR)
 
 ### `backtesting/`
 - `compute_metrics(equity)` — total return, Sharpe, Sortino, Calmar, MaxDD, win rate
