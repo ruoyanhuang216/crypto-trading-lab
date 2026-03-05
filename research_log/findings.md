@@ -5,6 +5,95 @@ Each entry references the daily log where it was first observed.
 
 ---
 
+## ML Track — Summary (P-ML2 through P-ML6)
+
+| Finding | Experiment | Result | Verdict |
+|---|---|---|---|
+| F8 | P-ML2 LightGBM baseline | Sharpe −0.046, IC sign-unstable across regimes | Baseline established |
+| F9 | P-ML3 Regime-aware LightGBM | Exp-C skip-bull: Sharpe +0.280 — first positive OOS | Regime gate essential |
+| F10 | P-ML4 RegimeEnsemble (3yr) | Sharpe +0.227; bull IC negative — too few training bars | Data volume is bottleneck |
+| F12 | P-ML5 RegimeEnsemble (6yr) | **Sharpe +0.927, Return +630%** — bull IC turns positive in 3/4 folds | Best model to date |
+| F13 | P-ML6 LSTM 30-bar (6yr) | Sharpe −0.517, Return −93% — worse than LightGBM on every metric | Sequential model rejected |
+
+**Current champion: P-ML5 RegimeEnsemble (Sharpe +0.927 vs B&H +1.379).**
+
+Dominant axis of improvement has been **data + regime gating**, not model architecture.
+The remaining gap to B&H is driven by: (1) bull Fold 2 IC = −0.050 (Jan 2021–Jan 2022
+ATH/crash, no momentum features) and (2) MaxDD −68% from short positions in 2022 bear market.
+
+Next planned experiment: **P-ML7** — add multi-period momentum features (`ret_5`, `ret_20`,
+`ret_60`) to give the bull model an explicit trend-continuation signal.
+
+---
+
+## F13 — LSTM Forecaster does NOT outperform LightGBM at 1-day BTC horizon (hypothesis rejected)
+**Date:** 2026-03-05 | **Notebook:** `p_ml6_lstm.ipynb`
+
+Hypothesis: A 30-bar LSTM captures multi-bar temporal dependencies that single-bar LightGBM
+(P-ML5) cannot, improving OOS IC and Sharpe on 6yr BTC/USDT daily.
+
+**Setup:** Same dataset (2019–2025, 2,171 bars), same 12 features, same purged walk-forward
+(5 folds, train_frac=0.6, purge=1). LSTM: seq_len=30, units=64, dropout=0.2, EarlyStopping
+(patience=10). No regime gating — pure sequence model, direct comparison to P-ML5 LightGBM.
+
+**Per-fold OOS IC (after excluding 29-bar warmup from each test fold):**
+
+| Fold | Test period | P-ML5 IC | P-ML6 IC | Epochs | LSTM better? |
+|---|---|---|---|---|---|
+| 1 | Jan 2020–Jan 2021 | +0.0612 | −0.0451 | 23 | no |
+| 2 | Jan 2021–Jan 2022 | −0.0536 | +0.0223 | 23 | YES |
+| 3 | Jan 2022–Jan 2023 | +0.1295 | +0.0011 | 24 | no |
+| 4 | Jan 2023–Dec 2023 | +0.0462 | −0.0061 | 24 | no |
+| 5 | Jan 2024–Dec 2024 | +0.0861 | +0.0271 | 15 | no |
+
+EarlyStopping triggered early in all folds (15–24 epochs of max 100) — model converges quickly.
+
+**Aggregate:**
+
+| Metric | P-ML5 LightGBM | P-ML6 LSTM |
+|---|---|---|
+| Mean OOS IC | +0.054 | −0.000 |
+| ICIR | +0.888 | −0.006 |
+| Negative-IC folds | 1/5 | 2/5 |
+| OOS Return | +630.2% | **−93.2%** |
+| OOS Sharpe | +0.927 | **−0.517** |
+| Max Drawdown | −68.0% | **−94.7%** |
+
+**Verdict: HYPOTHESIS REJECTED.** LSTM performs dramatically worse than LightGBM on both IC
+and equity. Mean IC ≈ 0 (random), Sharpe −0.517, equity −93.2% vs LightGBM +630.2%.
+LSTM beats LightGBM in only 1/5 folds (Fold 2).
+
+**Root cause analysis:**
+
+1. **Daily bar already integrates intra-day sequence:** Each 1d OHLCV bar (open, high, low,
+   close, volume, and derived features) already captures the within-day price path. The LSTM's
+   30-bar window provides inter-day history, but the key mean-reversion and momentum signals
+   encoded in the 12 features are already available in the snapshot at bar t. The LSTM adds
+   sequence-of-summaries rather than sequence-of-raw-ticks.
+
+2. **Insufficient training sequences per fold:** With seq_len=30 and ~360 training bars per fold,
+   the LSTM trains on only ~330 sequences — far fewer than the ~1,200 samples LightGBM uses.
+   Neural networks typically require at least 10× the parameter count in samples; with 64+32
+   LSTM units and Dense(1), this training set is marginal.
+
+3. **EarlyStopping fires at 15–24 epochs:** Training loss ≈ 0.0019, val loss ≈ 0.0012 at Fold 3
+   termination. The gap suggests mild overfitting within the first 20 epochs on only ~300 training
+   sequences — the model learns some noise before early stopping kicks in.
+
+4. **30-bar window may be too long:** The dominant signals in this 12-feature set (mean-reversion:
+   `bar_ret`, `bb_zscore`, `rsi`) are concentrated in the most recent 1–5 bars. A 30-bar window
+   adds 25+ bars of older, lower-IC history that likely dilutes the signal.
+
+**Implication:** Sequential LSTM architecture is not a reliable upgrade over LightGBM for
+daily BTC directional forecasting with this feature set and data size. P-ML5 RegimeEnsemble
+(Sharpe +0.927) remains the best ML model. Next directions:
+- Try shorter seq_len (5–10 bars) targeting recent momentum signal
+- Extend to tick or minute-level data where true intra-sequence patterns exist
+- Combine LSTM prediction with P-ML3 Exp-C regime gating to reduce MaxDD
+- Try 3–5d horizon where trend memory is more relevant than mean-reversion
+
+---
+
 ## F12 — Extended 6yr dataset fixes bull model IC; P-ML5 equity +630% (Sharpe +0.927)
 **Date:** 2026-03-03 | **Notebook:** `p_ml5_extended_dataset.ipynb`
 

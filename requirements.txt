@@ -10,3 +10,4 @@ scipy
 statsmodels
 lightgbm
 scikit-learn
+tensorflow
