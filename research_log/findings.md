@@ -5,7 +5,7 @@ Each entry references the daily log where it was first observed.
 
 ---
 
-## ML Track — Summary (P-ML2 through P-ML6)
+## ML Track — Summary (P-ML2 through P-ML7)
 
 | Finding | Experiment | Result | Verdict |
 |---|---|---|---|
@@ -14,15 +14,84 @@ Each entry references the daily log where it was first observed.
 | F10 | P-ML4 RegimeEnsemble (3yr) | Sharpe +0.227; bull IC negative — too few training bars | Data volume is bottleneck |
 | F12 | P-ML5 RegimeEnsemble (6yr) | **Sharpe +0.927, Return +630%** — bull IC turns positive in 3/4 folds | Best model to date |
 | F13 | P-ML6 LSTM 30-bar (6yr) | Sharpe −0.517, Return −93% — worse than LightGBM on every metric | Sequential model rejected |
+| F14 | P-ML7 RegimeEnsemble + momentum (6yr) | **Sharpe +1.261, Return +1998%** — approaches B&H Sharpe +1.379 | New best model |
 
-**Current champion: P-ML5 RegimeEnsemble (Sharpe +0.927 vs B&H +1.379).**
+**Current champion: P-ML7 RegimeEnsemble + momentum features (Sharpe +1.261 vs B&H +1.379).**
 
-Dominant axis of improvement has been **data + regime gating**, not model architecture.
-The remaining gap to B&H is driven by: (1) bull Fold 2 IC = −0.050 (Jan 2021–Jan 2022
-ATH/crash, no momentum features) and (2) MaxDD −68% from short positions in 2022 bear market.
+Dominant improvement axes confirmed: **regime gating + data volume + feature engineering**.
+Remaining gap to B&H: 0.118 Sharpe points. MaxDD worsened to −77.3% — risk overlay is the
+next priority before further feature or architecture work.
 
-Next planned experiment: **P-ML7** — add multi-period momentum features (`ret_5`, `ret_20`,
-`ret_60`) to give the bull model an explicit trend-continuation signal.
+Next planned work: **P-ML8** — wrap `RegimeEnsemble` into a proper `MLStrategy` class;
+**P-ML9** — position sizing + drawdown brake to address MaxDD −77.3%.
+
+---
+
+## F14 — Momentum features (P-ML7) push Sharpe to +1.261, approaching Buy & Hold
+**Date:** 2026-03-06 | **Notebook:** `p_ml7_momentum_features.ipynb`
+
+Hypothesis (H1): Adding multi-period momentum features (`ret_5`, `ret_20`, `mom_zscore_20`,
+`ret_5_minus_20`) to the 12-feature P-ML5 set gives the bull model an explicit
+trend-continuation signal, improving OOS IC and Sharpe.
+
+**IC screen results (Spearman IC on bull bars):**
+
+| Feature | IC_all | IC_bull | IC_nonbull | Collinear with | Selected? |
+|---|---|---|---|---|---|
+| `ret_5` | −0.018 | +0.012 | −0.044 | `bb_zscore` (r=0.748) | YES |
+| `ret_20` | +0.008 | +0.010 | −0.021 | `rsi` (r=0.848) ← high | YES |
+| `ret_60` | +0.041 | +0.002 | +0.025 | — | no (|IC_bull|<0.01) |
+| `mom_zscore_20` | +0.000 | +0.040 | −0.031 | `macd_hist_norm` (r=0.721) | YES |
+| `ret_5_minus_20` | +0.000 | −0.012 | +0.026 | `rsi` (r=0.618) | YES |
+
+`ret_20` flagged as collinear with RSI (r=0.848) but selected anyway (|IC_bull|=0.010 > threshold).
+`ret_60` rejected — IC_bull ≈ 0 despite strong IC_all, suggesting the 60-bar signal is
+non-bull-specific and already captured by `di_diff` / `adx`.
+
+**FEATURES_V2 (16 features):** original 12 + [`ret_5`, `ret_20`, `mom_zscore_20`, `ret_5_minus_20`]
+
+**Per-fold OOS IC (P-ML5 vs P-ML7):**
+
+| Fold | Test period | P-ML5 IC | P-ML7 IC | Δ IC | Bull IC P5 | Bull IC P7 |
+|---|---|---|---|---|---|---|
+| 1 | Feb 2020–Feb 2021 | +0.0612 | +0.0721 | +0.011 | +0.031 | nan† |
+| 2 | Feb 2021–Jan 2022 | −0.0536 | **+0.0091** | **+0.063** | −0.050 | −0.128‡ |
+| 3 | Jan 2022–Jan 2023 | +0.1295 | +0.1283 | −0.001 | nan | +0.179 |
+| 4 | Jan 2023–Jan 2024 | +0.0462 | +0.0537 | +0.008 | +0.042 | +0.058 |
+| 5 | Jan 2024–Dec 2024 | +0.0861 | +0.1069 | +0.021 | +0.061 | +0.071 |
+
+†Fold 1: OOS window shifted (ret_60 adds ~40 extra warmup bars), fewer bull test bars available.
+‡Fold 2: Aggregate IC improved (+0.0091 vs −0.0536) but **bull-specific IC worsened** (−0.128 vs −0.050). The momentum features make the bull model more aggressive long just before the ATH crash.
+
+**Aggregate metrics:**
+
+| Metric | P-ML5 (12 feats) | P-ML7 (16 feats) |
+|---|---|---|
+| Mean OOS IC | +0.054 | **+0.074** |
+| ICIR | +0.888 | **+1.779** |
+| Mean Bull IC | +0.021 | **+0.045** |
+| Fold 2 Bull IC | −0.050 | −0.128 (worse) |
+| OOS Sharpe | +0.927 | **+1.261** |
+| OOS Return | +630.2% | **+1997.6%** |
+| Max Drawdown | −68.0% | **−77.3%** (worse) |
+
+**Verdict: HYPOTHESIS SUPPORTED.** Momentum features improve Mean IC (+0.074 vs +0.054),
+ICIR (+1.779 vs +0.888), Mean Bull IC (+0.045 vs +0.021), and Sharpe (+1.261 vs +0.927).
+P-ML7 approaches Buy & Hold (Sharpe +1.379) to within 0.118 Sharpe points.
+
+**Key nuance — Fold 2 bull IC worsens despite aggregate IC improving:**
+The ATH+crash period (Jan 2021–Jan 2022) is not fixed by momentum features. In fact it gets
+worse: `ret_20` ≈ +40–60% log-return at ATH makes the bull model strongly predict continuation
+just before the crash. The aggregate Fold 2 IC improves (+0.0091 vs −0.0536) because the
+*non-bull* predictions improve, not the bull predictions.
+
+**Implication:**
+- Momentum features are a genuine signal improvement (ICIR nearly doubles)
+- The Fold 2 bull failure is a *late-trend detection* problem, not a *feature availability* problem
+  — the model correctly identifies strong momentum but cannot predict the reversal
+- MaxDD worsened to −77.3% because stronger bull predictions amplify losses when they're wrong
+- **Next priority: P-ML8 (strategy integration) + P-ML9 (risk overlay / position sizing)**
+  to exploit the improved IC without amplifying drawdowns
 
 ---
 

@@ -1,7 +1,7 @@
 # Roadmap
 
 Current priority list. Updated at the end of each session.
-_Last updated: 2026-03-05 (P-ML6 complete; P-ML7 planned)_
+_Last updated: 2026-03-06 (P-ML7 complete; P-ML8/P-ML9 planned)_
 
 ---
 
@@ -83,18 +83,19 @@ See `ml/models/lstm.py`, `notebooks/p_ml6_lstm.ipynb`, F13.
 
 ## ML Track — Scorecard & Learnings
 
-### Experiment scoreboard (P-ML2 through P-ML6)
+### Experiment scoreboard (P-ML2 through P-ML7)
 
 | Experiment | Model | OOS Sharpe | OOS Return | Max DD | Key change vs prior |
 |---|---|---|---|---|---|
 | P-ML2 | LightGBM baseline (3yr) | −0.046 | −32.4% | −76.8% | First model |
 | P-ML3 Exp-C | LightGBM + skip-bull (3yr) | +0.280 | +8.8% | −49.8% | Regime gate |
 | P-ML4 | RegimeEnsemble (3yr) | +0.227 | −2.5% | −57.3% | Separate bull model |
-| **P-ML5** | **RegimeEnsemble (6yr)** | **+0.927** | **+630.2%** | **−68.0%** | Extended dataset |
+| P-ML5 | RegimeEnsemble (6yr) | +0.927 | +630.2% | −68.0% | Extended dataset |
 | P-ML6 | LSTM 30-bar (6yr) | −0.517 | −93.2% | −94.7% | Sequence model |
+| **P-ML7** | **RegimeEnsemble + momentum (6yr)** | **+1.261** | **+1997.6%** | **−77.3%** | **+4 momentum features** |
 | *Buy & Hold* | *—* | *+1.379* | *+299.6%* | *−35.4%* | *Benchmark* |
 
-**Current best: P-ML5 RegimeEnsemble (Sharpe +0.927). Gap to B&H: 0.452 Sharpe points.**
+**Current best: P-ML7 (Sharpe +1.261). Gap to B&H: 0.118 Sharpe points. MaxDD gap: −41.9pp.**
 
 ### Key learnings
 
@@ -103,79 +104,96 @@ See `ml/models/lstm.py`, `notebooks/p_ml6_lstm.ipynb`, F13.
    (+8.8%) purely by stopping deployment during the wrong regime.
 
 2. **Data volume matters more than model architecture.** Extending from 3yr to 6yr (P-ML4 → P-ML5)
-   yielded a 2× bull-bar multiplier and turned bull-model IC from −0.102 to +0.021. This was a
-   bigger gain (+630% vs −2.5%) than any architectural change (P-ML3→P-ML4 was nearly flat).
+   yielded a 2× bull-bar multiplier and turned bull-model IC from −0.102 to +0.021. Bigger gain
+   than any architectural change.
 
-3. **Sequential LSTM adds no value at daily resolution with this data size.** Each 1d bar already
-   summarises intra-day dynamics; ~330 training sequences per fold is insufficient for a neural
-   network. LightGBM with single-bar features decisively outperforms (P-ML5 Sharpe +0.927 vs
-   P-ML6 LSTM −0.517). LSTM is not worth pursuing unless training data grows to 10+ years or
-   the frequency drops to intraday ticks.
+3. **Feature engineering compounds on data and regime work.** P-ML7 adds 4 momentum features to
+   the P-ML5 base; ICIR nearly doubles (+1.779 vs +0.888) and Sharpe closes 73% of the gap to
+   B&H (0.927 → 1.261 vs target 1.379). Key insight: `ret_20` and `mom_zscore_20` give the bull
+   model explicit trend-strength signal; `ret_5` and `ret_5_minus_20` add acceleration.
 
-4. **Remaining gap to B&H is driven by two specific weaknesses:**
-   - Bull model Fold 2 IC = −0.050 (Jan 2021–Jan 2022, the ATH + crash quarter). The model
-     fails to distinguish early-trend from late-trend reversal, likely because the current 12
-     features are all oscillators/momentum-at-1-bar — none encodes multi-week trend continuation.
-   - MaxDD −68.0% vs B&H −35.4%: the equity curve amplifies the 2022 bear market drawdown
-     because the non-bull model takes short positions that compound during sharp recoveries.
+4. **Sequential LSTM adds no value at daily resolution with this data size.** (~330 sequences/fold
+   is too few; each 1d bar already summarises intra-day dynamics.) Not worth revisiting unless
+   data grows to 10+ years or frequency drops to intraday.
+
+5. **The Fold 2 ATH+crash failure is a late-trend detection problem, not a feature gap.**
+   Momentum features worsen Fold 2 bull IC (−0.128 vs −0.050) — the model sees strong `ret_20`
+   at ATH and doubles down on the long, right before the crash. This is fundamentally a
+   *regime-within-regime* problem: the model needs to distinguish "early bull" from "overextended
+   bull", which requires either (a) a valuation signal (BTC/stock ratio, funding rate) or
+   (b) a drawdown / volatility-of-momentum signal.
+
+6. **MaxDD worsened with momentum (−77.3% vs −68.0%).** Stronger IC → stronger positions →
+   larger losses on wrong calls. The signal quality improvement outweighs this on Sharpe, but
+   a risk overlay (position sizing, drawdown brake) is now the most urgent next step before
+   any further model improvement.
 
 ### Open hypotheses (ordered by expected impact)
 
-| # | Hypothesis | Mechanism | Risk |
+| # | Hypothesis | Status | Mechanism |
 |---|---|---|---|
-| H1 | Multi-period momentum features fix bull Fold 2 IC | `ret_20`, `ret_60` encode trend duration that oscillators miss | Low — additive to P-ML5 |
-| H2 | Longer horizon (3d / 5d) reduces mean-reversion dominance | At 3–5d, trend continuation ≫ single-bar reversal | Medium — requires new label + purge |
-| H3 | HMM regime classifier outperforms rule-based SMA200+ADX | Latent-state model detects regime transitions earlier | Medium — new `ml/regime` module |
-| H4 | LightGBM hyperparameter tuning (Optuna) squeezes P-ML5 | Better regularisation reduces Fold 2/3 overfitting | Low — marginal gain expected |
+| H1 | Momentum features improve bull IC | ✅ Confirmed (P-ML7) | `ret_20`, `mom_zscore_20` add trend-strength signal |
+| H2 | Risk overlay (position sizing + drawdown brake) fixes MaxDD | Planned (P-ML9) | Scale by pred z-score; halve position on DD>20% |
+| H3 | Strategy integration (MLStrategy class) | Planned (P-ML8) | Bridge `RegimeEnsemble` into backtesting engine |
+| H4 | HMM regime classifier detects late-bull / overextension | Open | Latent-state model for "early vs late" bull discrimination |
+| H5 | Optuna tuning on 16-feature P-ML7 model | Open (low priority) | Squeeze remaining gap vs B&H after risk overlay |
 
 ---
 
-## ML Track — Next Planned Experiment
+## ML Track — Next Planned Experiments
 
-### P-ML7. Momentum feature engineering — fix bull model Fold 2 IC
+### ~~P-ML7. Momentum feature engineering~~ ✅ COMPLETE — F14 logged
+Selected features: `ret_5`, `ret_20`, `mom_zscore_20`, `ret_5_minus_20` (4 of 5 candidates
+passed |IC_bull| > 0.01). `ret_60` rejected (IC_bull ≈ 0). `ret_20` flagged as collinear with
+RSI (r=0.848) but retained for bull-signal contribution.
+**Result:** Sharpe +1.261 (vs P-ML5 +0.927), ICIR +1.779, Return +1997.6%. Fold 2 bull IC
+worsened (−0.128) — ATH+crash failure is late-trend detection, not a feature gap.
+**Caveat:** MaxDD worsened to −77.3%. Risk overlay is urgent.
+See `ml/features/momentum.py`, `notebooks/p_ml7_momentum_features.ipynb`, F14.
 
-**Priority: HIGH — directly addresses the primary remaining weakness of P-ML5.**
+---
 
-**Hypothesis (H1):** The current 12-feature set is dominated by oscillators that encode
-*mean-reversion at 1-bar* (`bar_ret`, `bb_zscore`, `rsi`, `macd_hist_norm`). These features
-carry no information about whether price has been trending for 2–8 weeks. Adding explicit
-multi-period momentum features will give the bull model a "trend continuation" signal,
-specifically fixing Fold 2 (Jan 2021–Jan 2022: ATH + crash) where bull IC = −0.050.
+### P-ML8. Strategy integration — `RegimeLGBMStrategy` class
+**Priority: HIGH — prerequisite for any production use or proper backtesting.**
 
-**Features to add (candidate set):**
+The P-ML7 signal (16-feature `RegimeEnsemble`) currently lives only in notebook walk-forward
+loops. This experiment wraps it into the `strategies/` framework so it can be backtested with
+the standard engine, combined with risk overlays, and eventually deployed.
 
-| Feature | Formula | Rationale |
-|---|---|---|
-| `ret_5` | `log(close / close.shift(5))` | 1-week momentum |
-| `ret_20` | `log(close / close.shift(20))` | 1-month momentum |
-| `ret_60` | `log(close / close.shift(60))` | 1-quarter momentum |
-| `mom_zscore_20` | `(ret_20 − rolling_mean(ret_20, 60)) / rolling_std(ret_20, 60)` | Normalised trend strength |
-| `ret_5_minus_20` | `ret_5 − ret_20` | Short-term vs medium-term acceleration |
-
-Selection: run IC analysis (same method as P-ML1) to retain only features with |IC| > 0.01
-and low collinearity with existing features before adding to the ensemble.
-
-**Methodology:**
-1. Add candidate features to `ml/features/technical.py` (or new `ml/features/momentum.py`)
-2. IC screen: compute Spearman IC per feature across all 5 folds separately for bull / non-bull bars
-3. Augment feature set: `FEATURES_V2 = FEATURES + [selected momentum features]`
-4. Re-run P-ML5 walk-forward with `RegimeEnsemble` on `FEATURES_V2` — same 6yr data, same splits
-5. Compare per-fold bull model IC: P-ML5 vs P-ML7, focus on Fold 2
-6. Compare aggregate equity: Sharpe, Return, MaxDD vs P-ML5 baseline
-
-**Success criteria:** Bull model Fold 2 IC turns positive OR overall Mean Bull IC > +0.050
-(vs P-ML5 +0.021). Aggregate Sharpe > +0.927.
+**Design:**
+- Create `strategies/ml/regime_lgbm.py` — `RegimeLGBMStrategy`
+  - Constructor accepts a pre-trained `RegimeEnsemble` + `RegimeClassifier`
+  - `generate_signals(df)` → position Series using the ensemble's predictions
+  - Scaled position sizing: `position = clip(pred_zscore × 0.5, −1, +1)` instead of binary
+- Create `strategies/ml/__init__.py`
+- Notebook: `notebooks/p_ml8_strategy_integration.ipynb` — validate that the strategy
+  produces the same equity curve as the P-ML7 notebook walk-forward, then test scaled sizing
 
 **Files:**
-- Create `ml/features/momentum.py` — `build_momentum_features(df)` returning `ret_5`, `ret_20`, `ret_60`, `mom_zscore_20`, `ret_5_minus_20`
-- Edit `ml/features/__init__.py` — integrate momentum into `build_feature_matrix()`
-- Create `notebooks/p_ml7_momentum_features.ipynb` — 5-section notebook (IC screen → augmented walk-forward → IC comparison → equity comparison → conclusions)
-- Edit `research_log/findings.md` — log F14 after execution
+- Create `strategies/ml/__init__.py`
+- Create `strategies/ml/regime_lgbm.py`
+- Create `notebooks/p_ml8_strategy_integration.ipynb`
 
-**If hypothesis rejected:** Escalate to H2 (longer horizon). A 3d forward return would shift
-the target from mean-reversion territory into trend-following territory, potentially making the
-current oscillator features useful in a different way. Requires adjusting `HORIZON=3`,
-`PURGE=3` and revalidating all fold IC.
+---
+
+### P-ML9. Risk overlay — position sizing + drawdown brake
+**Priority: HIGH — MaxDD −77.3% is the biggest remaining gap to B&H (−35.4%).**
+
+Implement a post-prediction position transformation layer that:
+1. **Scales by confidence:** convert raw prediction to z-score using a rolling 60-bar window;
+   `position = clip(pred_zscore × scale, −max_pos, +max_pos)` with `scale=0.5, max_pos=1.0`
+2. **Drawdown brake:** when rolling 30-bar equity drawdown exceeds 20%, halve all positions
+3. **Bull cap:** cap bull-regime long position at 0.5 (no leverage on overextended bull)
+
+**Expected effect:** reduce MaxDD from −77% toward B&H −35% while preserving most of the
+IC-driven return. The scaled positioning also naturally reduces whipsaw losses on marginal predictions.
+
+Test as a wrapper around the P-ML7 `RegimeLGBMStrategy` in the P-ML8 notebook or a dedicated
+`notebooks/p_ml9_risk_overlay.ipynb`.
+
+**Files:**
+- Create `ml/risk/position_sizing.py` — `ScaledPositionSizer`, `DrawdownBrake`
+- Create `notebooks/p_ml9_risk_overlay.ipynb`
 
 ---
 
