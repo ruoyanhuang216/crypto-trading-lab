@@ -1,7 +1,7 @@
 # Roadmap
 
 Current priority list. Updated at the end of each session.
-_Last updated: 2026-03-06 (P-ML7 complete; P-ML8/P-ML9 planned)_
+_Last updated: 2026-03-06 (P-ML8 complete; P-ML9/P-ML10 planned)_
 
 ---
 
@@ -83,7 +83,7 @@ See `ml/models/lstm.py`, `notebooks/p_ml6_lstm.ipynb`, F13.
 
 ## ML Track — Scorecard & Learnings
 
-### Experiment scoreboard (P-ML2 through P-ML7)
+### Experiment scoreboard (P-ML2 through P-ML8)
 
 | Experiment | Model | OOS Sharpe | OOS Return | Max DD | Key change vs prior |
 |---|---|---|---|---|---|
@@ -93,9 +93,11 @@ See `ml/models/lstm.py`, `notebooks/p_ml6_lstm.ipynb`, F13.
 | P-ML5 | RegimeEnsemble (6yr) | +0.927 | +630.2% | −68.0% | Extended dataset |
 | P-ML6 | LSTM 30-bar (6yr) | −0.517 | −93.2% | −94.7% | Sequence model |
 | **P-ML7** | **RegimeEnsemble + momentum (6yr)** | **+1.261** | **+1997.6%** | **−77.3%** | **+4 momentum features** |
+| P-ML8 | RegimeEnsemble + volume (24f, 6yr) | +0.180 | −43.2% | −91.5% | +8 volume features |
 | *Buy & Hold* | *—* | *+1.379* | *+299.6%* | *−35.4%* | *Benchmark* |
 
 **Current best: P-ML7 (Sharpe +1.261). Gap to B&H: 0.118 Sharpe points. MaxDD gap: −41.9pp.**
+P-ML8 volume features hurt performance — FEATURES_V2 (16 features) remains the baseline.
 
 ### Key learnings
 
@@ -128,13 +130,20 @@ See `ml/models/lstm.py`, `notebooks/p_ml6_lstm.ipynb`, F13.
    a risk overlay (position sizing, drawdown brake) is now the most urgent next step before
    any further model improvement.
 
+7. **Passing an IC screen is necessary but not sufficient for feature inclusion.** P-ML8 added
+   8 volume features that all passed |IC_bull| > 0.01, yet ensemble Sharpe collapsed
+   (+1.261 → +0.180). Root cause: 8 correlated volume features fragment LightGBM's split
+   allocation across near-duplicate signals, causing overfitting. Rule: add at most 1–2 new
+   features at a time, or use forward selection, not batch inclusion.
+
 ### Open hypotheses (ordered by expected impact)
 
 | # | Hypothesis | Status | Mechanism |
 |---|---|---|---|
 | H1 | Momentum features improve bull IC | ✅ Confirmed (P-ML7) | `ret_20`, `mom_zscore_20` add trend-strength signal |
-| H2 | Risk overlay (position sizing + drawdown brake) fixes MaxDD | Planned (P-ML9) | Scale by pred z-score; halve position on DD>20% |
-| H3 | Strategy integration (MLStrategy class) | Planned (P-ML8) | Bridge `RegimeEnsemble` into backtesting engine |
+| H_vol | Volume features add conviction signal beyond price | ✅ Rejected at daily (P-ML8) | Signal real but too weak; 8 features → overfitting |
+| H2 | Risk overlay (position sizing + drawdown brake) fixes MaxDD | Planned (P-ML10) | Scale by pred z-score; halve position on DD>20% |
+| H3 | Strategy integration (MLStrategy class) | Planned (P-ML9) | Bridge `RegimeEnsemble` into backtesting engine |
 | H4 | HMM regime classifier detects late-bull / overextension | Open | Latent-state model for "early vs late" bull discrimination |
 | H5 | Optuna tuning on 16-feature P-ML7 model | Open (low priority) | Squeeze remaining gap vs B&H after risk overlay |
 
@@ -153,7 +162,25 @@ See `ml/features/momentum.py`, `notebooks/p_ml7_momentum_features.ipynb`, F14.
 
 ---
 
-### P-ML8. Strategy integration — `RegimeLGBMStrategy` class
+### ~~P-ML8. Volume feature engineering~~ ✅ COMPLETE — F15 logged
+Two theories tested: (1) volume as sentiment indicator; (2) volume as institutional participation proxy.
+9 volume candidates screened: `vol_log_ratio_{7,14,30}d`, `vol_cv_14d`, `vol_zscore_30d`,
+`vol_trend_7_14`, `vol_signed_ratio_{7,14}d`, `vol_price_corr_14d`.
+**IC screen:** 8/9 passed |IC_bull| > 0.01. None collinear with FEATURES_V2 (all max|r| < 0.8).
+**Walk-forward:** FEATURES_V3 (24 features) Sharpe **+0.180** vs P-ML7 +1.261 — adding 8 volume
+features caused LightGBM to overfit (ICIR +0.747 vs +1.779). Bull IC improved (+0.120 vs +0.045)
+but total model degraded.
+**Institutional era analysis:** Volume IC peaked in Era 2 (2021 bull run), not Era 4 (ETF era),
+inconsistent with simple institutional adoption theory. BTC volume also declined in USD-equivalent
+terms over time (exchange shift artefact).
+**Key learning:** IC screen is necessary but not sufficient. Batch-adding 8 correlated features
+hurts LightGBM via split fragmentation. Future: add ≤2 volume features at a time.
+**FEATURES_V2 (16 features from P-ML7) remains the champion feature set.**
+See `ml/features/volume.py`, `notebooks/p_ml8_volume_features.ipynb`, F15.
+
+---
+
+### P-ML9. Strategy integration — `RegimeLGBMStrategy` class
 **Priority: HIGH — prerequisite for any production use or proper backtesting.**
 
 The P-ML7 signal (16-feature `RegimeEnsemble`) currently lives only in notebook walk-forward
@@ -166,17 +193,17 @@ the standard engine, combined with risk overlays, and eventually deployed.
   - `generate_signals(df)` → position Series using the ensemble's predictions
   - Scaled position sizing: `position = clip(pred_zscore × 0.5, −1, +1)` instead of binary
 - Create `strategies/ml/__init__.py`
-- Notebook: `notebooks/p_ml8_strategy_integration.ipynb` — validate that the strategy
+- Notebook: `notebooks/p_ml9_strategy_integration.ipynb` — validate that the strategy
   produces the same equity curve as the P-ML7 notebook walk-forward, then test scaled sizing
 
 **Files:**
 - Create `strategies/ml/__init__.py`
 - Create `strategies/ml/regime_lgbm.py`
-- Create `notebooks/p_ml8_strategy_integration.ipynb`
+- Create `notebooks/p_ml9_strategy_integration.ipynb`
 
 ---
 
-### P-ML9. Risk overlay — position sizing + drawdown brake
+### P-ML10. Risk overlay — position sizing + drawdown brake
 **Priority: HIGH — MaxDD −77.3% is the biggest remaining gap to B&H (−35.4%).**
 
 Implement a post-prediction position transformation layer that:
@@ -188,12 +215,12 @@ Implement a post-prediction position transformation layer that:
 **Expected effect:** reduce MaxDD from −77% toward B&H −35% while preserving most of the
 IC-driven return. The scaled positioning also naturally reduces whipsaw losses on marginal predictions.
 
-Test as a wrapper around the P-ML7 `RegimeLGBMStrategy` in the P-ML8 notebook or a dedicated
-`notebooks/p_ml9_risk_overlay.ipynb`.
+Test as a wrapper around the P-ML7 `RegimeLGBMStrategy` in the P-ML9 notebook or a dedicated
+`notebooks/p_ml10_risk_overlay.ipynb`.
 
 **Files:**
 - Create `ml/risk/position_sizing.py` — `ScaledPositionSizer`, `DrawdownBrake`
-- Create `notebooks/p_ml9_risk_overlay.ipynb`
+- Create `notebooks/p_ml10_risk_overlay.ipynb`
 
 ---
 

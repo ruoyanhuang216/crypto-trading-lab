@@ -5,7 +5,7 @@ Each entry references the daily log where it was first observed.
 
 ---
 
-## ML Track — Summary (P-ML2 through P-ML7)
+## ML Track — Summary (P-ML2 through P-ML8)
 
 | Finding | Experiment | Result | Verdict |
 |---|---|---|---|
@@ -15,15 +15,15 @@ Each entry references the daily log where it was first observed.
 | F12 | P-ML5 RegimeEnsemble (6yr) | **Sharpe +0.927, Return +630%** — bull IC turns positive in 3/4 folds | Best model to date |
 | F13 | P-ML6 LSTM 30-bar (6yr) | Sharpe −0.517, Return −93% — worse than LightGBM on every metric | Sequential model rejected |
 | F14 | P-ML7 RegimeEnsemble + momentum (6yr) | **Sharpe +1.261, Return +1998%** — approaches B&H Sharpe +1.379 | New best model |
+| F15 | P-ML8 Volume features (6yr) | Sharpe +0.180 — **worse than P-ML7** despite 8/9 features passing IC | Volume redundant at daily resolution |
 
 **Current champion: P-ML7 RegimeEnsemble + momentum features (Sharpe +1.261 vs B&H +1.379).**
 
 Dominant improvement axes confirmed: **regime gating + data volume + feature engineering**.
-Remaining gap to B&H: 0.118 Sharpe points. MaxDD worsened to −77.3% — risk overlay is the
-next priority before further feature or architecture work.
+Remaining gap to B&H: 0.118 Sharpe points. MaxDD −77.3% — risk overlay is the next priority.
 
-Next planned work: **P-ML8** — wrap `RegimeEnsemble` into a proper `MLStrategy` class;
-**P-ML9** — position sizing + drawdown brake to address MaxDD −77.3%.
+Next planned work: **P-ML9** — wrap `RegimeEnsemble` into a proper `RegimeLGBMStrategy` class;
+**P-ML10** — position sizing + drawdown brake to address MaxDD −77.3%.
 
 ---
 
@@ -92,6 +92,112 @@ just before the crash. The aggregate Fold 2 IC improves (+0.0091 vs −0.0536) b
 - MaxDD worsened to −77.3% because stronger bull predictions amplify losses when they're wrong
 - **Next priority: P-ML8 (strategy integration) + P-ML9 (risk overlay / position sizing)**
   to exploit the improved IC without amplifying drawdowns
+
+---
+
+## F15 — Volume features hurt P-ML7 performance despite passing IC screen
+**Date:** 2026-03-06 | **Notebook:** `p_ml8_volume_features.ipynb`
+
+**Motivation:** Two theories justify volume features: (1) **sentiment** — volume validates price
+conviction; (2) **institutional participation** — growing BTC institutional presence since 2020
+(Grayscale/MicroStrategy) and ETF era (Jan 2024) leaves footprints in volume patterns.
+
+**Setup:** 9 volume candidates across 6 categories: `vol_log_ratio_{7,14,30}d` (level vs average),
+`vol_cv_14d` (consistency), `vol_zscore_30d` (block-trade spike), `vol_trend_7_14` (acceleration),
+`vol_signed_ratio_{7,14}d` (directional OBV-style), `vol_price_corr_14d` (volume-price alignment).
+IC screen on bull bars (|IC_bull| > 0.01). Augmented walk-forward: FEATURES_V3 = FEATURES_V2 (16) + selected.
+
+**IC screen results (Spearman IC on bull bars):**
+
+| Feature | IC_all | IC_bull | IC_nonbull | max corr with V2 | Selected? |
+|---|---|---|---|---|---|
+| `vol_log_ratio_7d` | +0.040 | +0.035 | +0.043 | 0.656 (vol_log_chg) | YES |
+| `vol_log_ratio_14d` | +0.044 | +0.036 | +0.047 | 0.592 (vol_log_chg) | YES |
+| `vol_log_ratio_30d` | +0.048 | +0.029 | +0.054 | 0.555 (hl_range) | YES |
+| `vol_cv_14d` | −0.019 | −0.043 | −0.007 | 0.333 (ret_20) | YES |
+| `vol_zscore_30d` | +0.034 | +0.026 | +0.036 | 0.581 (hl_range) | YES |
+| `vol_trend_7_14` | +0.025 | **+0.005** | +0.033 | 0.430 | **no** |
+| `vol_signed_ratio_7d` | −0.001 | −0.036 | +0.000 | 0.691 (bb_zscore) | YES |
+| `vol_signed_ratio_14d` | +0.019 | +0.023 | +0.001 | 0.739 (rsi) | YES |
+| `vol_price_corr_14d` | +0.027 | +0.046 | +0.010 | 0.624 (mom_zscore_20) | YES |
+
+8/9 features passed IC screen. All max correlations with FEATURES_V2 below 0.8 (not redundant
+by correlation alone). `vol_trend_7_14` rejected (|IC_bull| = 0.005 < 0.01).
+
+**Era-stratified IC — institutional participation theory:**
+
+| Feature | Era1 Retail | Era2 Instit | Era3 Bear | Era4 ETF |
+|---|---|---|---|---|
+| `vol_log_ratio_7d` | +0.014 | **+0.153** | +0.008 | +0.012 |
+| `vol_zscore_30d` | −0.013 | **+0.133** | +0.028 | +0.012 |
+| `vol_cv_14d` | −0.074 | +0.029 | +0.063 | +0.030 |
+| `vol_signed_ratio_7d` | −0.009 | +0.003 | −0.003 | **−0.024** |
+| `vol_price_corr_14d` | +0.008 | **+0.076** | +0.005 | +0.051 |
+
+Most features peaked in Era 2 (2021 — first institutional wave), not Era 4 (ETF era). The 2021
+bull market had unusually strong volume-price correlation. Era 4 IC is not systematically higher
+than Era 1, suggesting the institutional adoption signal (if real) does not manifest at daily
+granularity within this 6yr window.
+
+**Volume landscape:** BTC daily volume actually *declined* 57% from Era 1 (mean 40,733 BTC/day)
+to Era 2 (17,683 BTC/day) — likely reflecting USD-denominated vs BTC-denominated exchange shifts
+rather than true institutional exit. Era 3 and 4 are similarly lower volume in BTC terms,
+which complicates the institutional theory.
+
+**FEATURES_V3 (24 features) walk-forward results:**
+
+| Fold | Test period | P-ML7 IC | P-ML8 IC | Δ IC |
+|---|---|---|---|---|
+| 1 | Feb 2020–Feb 2021 | +0.0721 | **−0.0391** | −0.111 |
+| 2 | Feb 2021–Jan 2022 | +0.0091 | +0.0027 | −0.006 |
+| 3 | Jan 2022–Jan 2023 | +0.1283 | **+0.1434** | +0.015 |
+| 4 | Jan 2023–Jan 2024 | +0.0537 | **+0.0701** | +0.016 |
+| 5 | Jan 2024–Dec 2024 | +0.1069 | +0.0545 | −0.052 |
+
+**Aggregate:**
+
+| Metric | P-ML7 (16f) | P-ML8 (24f) |
+|---|---|---|
+| Mean OOS IC | +0.074 | +0.046 |
+| ICIR | **+1.779** | +0.747 |
+| Mean Bull IC | +0.045 | **+0.120** ← improved |
+| OOS Sharpe | **+1.261** | +0.180 |
+| OOS Return | **+1997.6%** | −43.2% |
+| Max Drawdown | −77.3% | −91.5% |
+
+**Verdict: HYPOTHESIS NOT SUPPORTED.** Volume features hurt equity despite 8/9 passing IC
+screen. Sharpe collapses (+1.261 → +0.180), ICIR halved (+1.779 → +0.747), return goes negative.
+Mean Bull IC *improved* (+0.120 vs +0.045) but the extra 8 features caused overfitting in 3/5
+folds (Fold 1, 2, 5) and increased non-bull noise. FEATURES_V2 (P-ML7, 16 features) remains
+the champion feature set.
+
+**Root causes:**
+
+1. **Dimensionality curse with LightGBM:** Adding 8 correlated volume features (all related to
+   the single underlying volume signal) fragments information gain across similar splits. The
+   boost trees see 8 near-duplicate "votes" for volume and overfit that direction.
+2. **Volume IC is real but weak:** ICs 0.026–0.046 on bull bars are genuine signals (above 0.01
+   threshold) but too weak to survive the noise amplification of going from 16 to 24 features.
+3. **Feature selection was too permissive:** The |IC_bull| > 0.01 threshold with 9 candidates
+   selects 88% of them. A stricter threshold (0.03) or forward selection would have kept 1–2
+   volume features rather than 8. Volume ratio, z-score, and price-correlation are largely
+   correlated and redundant with each other.
+
+**Institutional participation theory:** *Partially confirmed.* Era 2 (2021) shows the strongest
+volume IC across most features, but Era 4 (ETF era) is not systematically stronger than Era 1
+(retail era). The theory may hold, but the signal is too diffuse at daily resolution.
+
+**Key learning (generalises to future feature work):**
+> Passing an IC screen is necessary but not sufficient. Adding too many features with
+> moderate, correlated IC can hurt a tree model by splitting information gain across redundant
+> splits. Future feature addition should be done incrementally (1–2 at a time) or via
+> forward selection rather than adding all IC-positive candidates at once.
+
+**Recommended volume feature strategy for future experiments:**
+- If testing volume: add at most 2 features (e.g., `vol_price_corr_14d` + `vol_cv_14d`)
+- Better leverage: revisit volume at **1h frequency** where intra-day conviction matters more
+- Alternative: test volume as a **regime conditioning variable** (high-vol regime vs low-vol
+  regime) rather than a direct predictive feature
 
 ---
 
