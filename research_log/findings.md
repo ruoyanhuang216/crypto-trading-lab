@@ -5,7 +5,7 @@ Each entry references the daily log where it was first observed.
 
 ---
 
-## ML Track — Summary (P-ML2 through P-ML8)
+## ML Track — Summary (P-ML2 through P-ML9)
 
 | Finding | Experiment | Result | Verdict |
 |---|---|---|---|
@@ -16,14 +16,46 @@ Each entry references the daily log where it was first observed.
 | F13 | P-ML6 LSTM 30-bar (6yr) | Sharpe −0.517, Return −93% — worse than LightGBM on every metric | Sequential model rejected |
 | F14 | P-ML7 RegimeEnsemble + momentum (6yr) | **Sharpe +1.261, Return +1998%** — approaches B&H Sharpe +1.379 | New best model |
 | F15 | P-ML8 Volume features (6yr) | Sharpe +0.180 — **worse than P-ML7** despite 8/9 features passing IC | Volume redundant at daily resolution |
+| F16 | P-ML9 Strategy integration | Binary reproduces P-ML7; **Scaled: Sharpe +1.583, MaxDD −33.6%** | Scaled beats B&H on both Sharpe and MaxDD |
 
-**Current champion: P-ML7 RegimeEnsemble + momentum features (Sharpe +1.261 vs B&H +1.379).**
+**Current champion: P-ML9 scaled mode (Sharpe +1.583 vs B&H +1.379, MaxDD −33.6% vs B&H −35.4%).**
 
-Dominant improvement axes confirmed: **regime gating + data volume + feature engineering**.
-Remaining gap to B&H: 0.118 Sharpe points. MaxDD −77.3% — risk overlay is the next priority.
+Dominant improvement axes confirmed: **regime gating + data volume + feature engineering + position sizing**.
+Scaled positioning closes the MaxDD gap entirely (−33.6% vs B&H −35.4%) while improving Sharpe.
 
-Next planned work: **P-ML9** — wrap `RegimeEnsemble` into a proper `RegimeLGBMStrategy` class;
-**P-ML10** — position sizing + drawdown brake to address MaxDD −77.3%.
+Next planned work: **P-ML10** — dedicated risk overlay (drawdown brake + bull cap) to further
+reduce tail risk beyond what simple z-score scaling achieves.
+
+---
+
+## F16 — Strategy Integration (P-ML9): scaled positioning beats Buy & Hold
+**Date:** 2026-03-23 | **Notebook:** `p_ml9_strategy_integration.ipynb`
+
+`RegimeLGBMStrategy` class created in `strategies/ml/regime_lgbm.py`, wrapping
+the P-ML7 `RegimeEnsemble` into the `BaseStrategy` interface.
+
+**Binary mode** (signal = sign(pred)) reproduces P-ML7 exactly:
+- Sharpe +1.261, Return +1997.6%, MaxDD −77.3% — all within tolerance.
+- OHLCV full-pipeline (`generate_signals(df)`) matches fast-path predictions exactly
+  when >= 250 warmup bars are provided (needed for SMA(200) in regime classifier).
+
+**Scaled mode** (signal = clip(pred_zscore × 0.5, −1, +1), 60-bar rolling z-score):
+
+| Metric | Binary | Scaled | Buy & Hold |
+|---|---|---|---|
+| OOS Sharpe | +1.261 | **+1.583** | +1.379 |
+| OOS Return | +1997.6% | +758.7% | +299.6% |
+| Max Drawdown | −77.3% | **−33.6%** | −35.4% |
+
+**Key insight:** Scaled positioning dramatically improves risk-adjusted returns.
+Sharpe +1.583 exceeds B&H (+1.379) by 15%, and MaxDD −33.6% is better than B&H (−35.4%).
+The return is lower (+758.7% vs +1997.6%) because smaller positions reduce both gains
+and losses, but the Sharpe improvement shows the trade-off is strongly favourable.
+
+**Mechanism:** The 60-bar rolling z-score of predictions acts as an implicit
+confidence filter — predictions far from recent mean get larger positions,
+while marginal predictions (near the rolling mean) get near-zero positions,
+reducing whipsaw losses.
 
 ---
 

@@ -1,7 +1,7 @@
 # Roadmap
 
 Current priority list. Updated at the end of each session.
-_Last updated: 2026-03-06 (P-ML8 complete; P-ML9/P-ML10 planned)_
+_Last updated: 2026-03-23 (P-ML9 complete; P-ML10 planned)_
 
 ---
 
@@ -94,10 +94,12 @@ See `ml/models/lstm.py`, `notebooks/p_ml6_lstm.ipynb`, F13.
 | P-ML6 | LSTM 30-bar (6yr) | −0.517 | −93.2% | −94.7% | Sequence model |
 | **P-ML7** | **RegimeEnsemble + momentum (6yr)** | **+1.261** | **+1997.6%** | **−77.3%** | **+4 momentum features** |
 | P-ML8 | RegimeEnsemble + volume (24f, 6yr) | +0.180 | −43.2% | −91.5% | +8 volume features |
+| **P-ML9 binary** | **RegimeLGBMStrategy (16f, 6yr)** | **+1.261** | **+1997.6%** | **−77.3%** | **Strategy class (reproduces P-ML7)** |
+| **P-ML9 scaled** | **RegimeLGBMStrategy scaled (16f, 6yr)** | **+1.583** | **+758.7%** | **−33.6%** | **pred_zscore × 0.5 positioning** |
 | *Buy & Hold* | *—* | *+1.379* | *+299.6%* | *−35.4%* | *Benchmark* |
 
-**Current best: P-ML7 (Sharpe +1.261). Gap to B&H: 0.118 Sharpe points. MaxDD gap: −41.9pp.**
-P-ML8 volume features hurt performance — FEATURES_V2 (16 features) remains the baseline.
+**Current best: P-ML9 scaled (Sharpe +1.583, MaxDD −33.6%). Beats B&H on both Sharpe (+0.204) and MaxDD (+1.8pp).**
+Scaled positioning via 60-bar pred z-score is the single biggest risk-adjusted improvement to date.
 
 ### Key learnings
 
@@ -130,7 +132,13 @@ P-ML8 volume features hurt performance — FEATURES_V2 (16 features) remains the
    a risk overlay (position sizing, drawdown brake) is now the most urgent next step before
    any further model improvement.
 
-7. **Passing an IC screen is necessary but not sufficient for feature inclusion.** P-ML8 added
+7. **Scaled position sizing via prediction z-score is the biggest risk improvement.** P-ML9 scaled
+   mode (pred_zscore × 0.5, 60-bar window) improves Sharpe from +1.261 to +1.583 and reduces MaxDD
+   from −77.3% to −33.6%, beating B&H on both metrics. The return is lower (+758.7% vs +1997.6%)
+   but the risk-adjusted improvement is dramatic. Mechanism: marginal predictions get near-zero
+   positions, cutting whipsaw losses while preserving high-conviction trades.
+
+8. **Passing an IC screen is necessary but not sufficient for feature inclusion.** P-ML8 added
    8 volume features that all passed |IC_bull| > 0.01, yet ensemble Sharpe collapsed
    (+1.261 → +0.180). Root cause: 8 correlated volume features fragment LightGBM's split
    allocation across near-duplicate signals, causing overfitting. Rule: add at most 1–2 new
@@ -143,7 +151,7 @@ P-ML8 volume features hurt performance — FEATURES_V2 (16 features) remains the
 | H1 | Momentum features improve bull IC | ✅ Confirmed (P-ML7) | `ret_20`, `mom_zscore_20` add trend-strength signal |
 | H_vol | Volume features add conviction signal beyond price | ✅ Rejected at daily (P-ML8) | Signal real but too weak; 8 features → overfitting |
 | H2 | Risk overlay (position sizing + drawdown brake) fixes MaxDD | Planned (P-ML10) | Scale by pred z-score; halve position on DD>20% |
-| H3 | Strategy integration (MLStrategy class) | Planned (P-ML9) | Bridge `RegimeEnsemble` into backtesting engine |
+| H3 | Strategy integration (MLStrategy class) | ✅ Confirmed (P-ML9) | `RegimeLGBMStrategy` + scaled mode beats B&H |
 | H4 | HMM regime classifier detects late-bull / overextension | Open | Latent-state model for "early vs late" bull discrimination |
 | H5 | Optuna tuning on 16-feature P-ML7 model | Open (low priority) | Squeeze remaining gap vs B&H after risk overlay |
 
@@ -180,26 +188,12 @@ See `ml/features/volume.py`, `notebooks/p_ml8_volume_features.ipynb`, F15.
 
 ---
 
-### P-ML9. Strategy integration — `RegimeLGBMStrategy` class
-**Priority: HIGH — prerequisite for any production use or proper backtesting.**
-
-The P-ML7 signal (16-feature `RegimeEnsemble`) currently lives only in notebook walk-forward
-loops. This experiment wraps it into the `strategies/` framework so it can be backtested with
-the standard engine, combined with risk overlays, and eventually deployed.
-
-**Design:**
-- Create `strategies/ml/regime_lgbm.py` — `RegimeLGBMStrategy`
-  - Constructor accepts a pre-trained `RegimeEnsemble` + `RegimeClassifier`
-  - `generate_signals(df)` → position Series using the ensemble's predictions
-  - Scaled position sizing: `position = clip(pred_zscore × 0.5, −1, +1)` instead of binary
-- Create `strategies/ml/__init__.py`
-- Notebook: `notebooks/p_ml9_strategy_integration.ipynb` — validate that the strategy
-  produces the same equity curve as the P-ML7 notebook walk-forward, then test scaled sizing
-
-**Files:**
-- Create `strategies/ml/__init__.py`
-- Create `strategies/ml/regime_lgbm.py`
-- Create `notebooks/p_ml9_strategy_integration.ipynb`
+### ~~P-ML9. Strategy integration — `RegimeLGBMStrategy` class~~ ✅ COMPLETE — F16 logged
+`RegimeLGBMStrategy` wraps `RegimeEnsemble` into `BaseStrategy` interface.
+- **Binary mode** reproduces P-ML7 exactly (Sharpe +1.261, Return +1997.6%, MaxDD −77.3%).
+- **Scaled mode** (pred_zscore × 0.5, 60-bar window): **Sharpe +1.583, MaxDD −33.6%** — beats B&H on both.
+- OHLCV full-pipeline (`generate_signals(df)`) validated with 250-bar warmup.
+See `strategies/ml/regime_lgbm.py`, `notebooks/p_ml9_strategy_integration.ipynb`, F16.
 
 ---
 
