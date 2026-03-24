@@ -1,7 +1,7 @@
 # Roadmap
 
 Current priority list. Updated at the end of each session.
-_Last updated: 2026-03-23 (P-ML9 complete; P-ML10 planned)_
+_Last updated: 2026-03-23 (P-ML11 complete; F18 logged — H4 rejected)_
 
 ---
 
@@ -96,10 +96,16 @@ See `ml/models/lstm.py`, `notebooks/p_ml6_lstm.ipynb`, F13.
 | P-ML8 | RegimeEnsemble + volume (24f, 6yr) | +0.180 | −43.2% | −91.5% | +8 volume features |
 | **P-ML9 binary** | **RegimeLGBMStrategy (16f, 6yr)** | **+1.261** | **+1997.6%** | **−77.3%** | **Strategy class (reproduces P-ML7)** |
 | **P-ML9 scaled** | **RegimeLGBMStrategy scaled (16f, 6yr)** | **+1.583** | **+758.7%** | **−33.6%** | **pred_zscore × 0.5 positioning** |
-| *Buy & Hold* | *—* | *+1.379* | *+299.6%* | *−35.4%* | *Benchmark* |
+| P-ML10 DD brake | RiskOverlay DD only (16f, 6yr) | +1.334 | +2318.8% | −68.4% | 30-bar DD brake at −20% |
+| P-ML10 combined | RiskOverlay DD+bull cap (16f, 6yr) | +1.273 | +1728.8% | −68.4% | DD brake + bull cap 0.5 |
+| P-ML10 comb+scaled | RiskOverlay on scaled (16f, 6yr) | +1.518 | +645.9% | −33.2% | DD+bull on P-ML9 scaled |
+| P-ML11 Exp-A | HMM features (20f, 6yr) | +1.074 | +1043.0% | −77.2% | +4 HMM one-hot (H4 rejected) |
+| P-ML11 Exp-B | HMM gating (gate=0.5, 6yr) | +1.055 | +884.1% | −76.8% | Block late-bull longs (H4 rejected) |
+| *Buy & Hold* | *—* | *+1.052* | *+876.6%* | *−76.6%* | *Benchmark* |
 
-**Current best: P-ML9 scaled (Sharpe +1.583, MaxDD −33.6%). Beats B&H on both Sharpe (+0.204) and MaxDD (+1.8pp).**
+**Current best: P-ML9 scaled (Sharpe +1.583, MaxDD −33.6%). Beats B&H on both Sharpe (+0.531) and MaxDD (+43.0pp).**
 Scaled positioning via 60-bar pred z-score is the single biggest risk-adjusted improvement to date.
+P-ML10 DD brake adds value on binary signals but is redundant when scaled positioning is already active.
 
 ### Key learnings
 
@@ -138,7 +144,22 @@ Scaled positioning via 60-bar pred z-score is the single biggest risk-adjusted i
    but the risk-adjusted improvement is dramatic. Mechanism: marginal predictions get near-zero
    positions, cutting whipsaw losses while preserving high-conviction trades.
 
-8. **Passing an IC screen is necessary but not sufficient for feature inclusion.** P-ML8 added
+8. **Portfolio-level risk overlays are redundant when per-prediction confidence scaling is active.**
+   P-ML10 DD brake (reactive, portfolio-level) improves binary signals (Sharpe +1.234 → +1.334)
+   but is marginally harmful on scaled signals (+1.583 → +1.518). The z-score scaling already
+   gives near-zero positions on uncertain predictions, making the reactive brake fire too late
+   to add value. Bull cap is blunt — it can't distinguish early vs late bull, hurting correctly-
+   predicted bull bars. Lesson: invest in *per-prediction* confidence rather than portfolio brakes.
+
+9. **Discretized regime features add no value when the raw observations are already in the feature set.**
+   P-ML11 HMM uses ret_20, atr_pct, mom_zscore_20, ret_5_minus_20 as observations — all already
+   in FEATURES_V2. The one-hot state encoding is a lossy discretization that LightGBM cannot exploit
+   beyond what it already learns from the continuous inputs. Sharpe dropped (+1.234 → +1.074) due to
+   added noise from 4 extra binary features. Gating late-bull longs is too blunt (blocks entire
+   overextension period, not just the crash). The Fold 2 failure requires *timing* signals (when the
+   bull ends), not *classification* signals (that it's extended).
+
+10. **Passing an IC screen is necessary but not sufficient for feature inclusion.** P-ML8 added
    8 volume features that all passed |IC_bull| > 0.01, yet ensemble Sharpe collapsed
    (+1.261 → +0.180). Root cause: 8 correlated volume features fragment LightGBM's split
    allocation across near-duplicate signals, causing overfitting. Rule: add at most 1–2 new
@@ -150,9 +171,9 @@ Scaled positioning via 60-bar pred z-score is the single biggest risk-adjusted i
 |---|---|---|---|
 | H1 | Momentum features improve bull IC | ✅ Confirmed (P-ML7) | `ret_20`, `mom_zscore_20` add trend-strength signal |
 | H_vol | Volume features add conviction signal beyond price | ✅ Rejected at daily (P-ML8) | Signal real but too weak; 8 features → overfitting |
-| H2 | Risk overlay (position sizing + drawdown brake) fixes MaxDD | Planned (P-ML10) | Scale by pred z-score; halve position on DD>20% |
+| H2 | Risk overlay (DD brake + bull cap) fixes MaxDD | ✅ Partially confirmed (P-ML10) | DD brake reduces binary MaxDD (−77→−68%); redundant on scaled signals |
 | H3 | Strategy integration (MLStrategy class) | ✅ Confirmed (P-ML9) | `RegimeLGBMStrategy` + scaled mode beats B&H |
-| H4 | HMM regime classifier detects late-bull / overextension | Open | Latent-state model for "early vs late" bull discrimination |
+| H4 | HMM regime classifier detects late-bull / overextension | ✅ Rejected (P-ML11) | HMM states overlap with existing features; Fold 2 bull IC unchanged |
 | H5 | Optuna tuning on 16-feature P-ML7 model | Open (low priority) | Squeeze remaining gap vs B&H after risk overlay |
 
 ---
@@ -197,24 +218,13 @@ See `strategies/ml/regime_lgbm.py`, `notebooks/p_ml9_strategy_integration.ipynb`
 
 ---
 
-### P-ML10. Risk overlay — position sizing + drawdown brake
-**Priority: HIGH — MaxDD −77.3% is the biggest remaining gap to B&H (−35.4%).**
-
-Implement a post-prediction position transformation layer that:
-1. **Scales by confidence:** convert raw prediction to z-score using a rolling 60-bar window;
-   `position = clip(pred_zscore × scale, −max_pos, +max_pos)` with `scale=0.5, max_pos=1.0`
-2. **Drawdown brake:** when rolling 30-bar equity drawdown exceeds 20%, halve all positions
-3. **Bull cap:** cap bull-regime long position at 0.5 (no leverage on overextended bull)
-
-**Expected effect:** reduce MaxDD from −77% toward B&H −35% while preserving most of the
-IC-driven return. The scaled positioning also naturally reduces whipsaw losses on marginal predictions.
-
-Test as a wrapper around the P-ML7 `RegimeLGBMStrategy` in the P-ML9 notebook or a dedicated
-`notebooks/p_ml10_risk_overlay.ipynb`.
-
-**Files:**
-- Create `ml/risk/position_sizing.py` — `ScaledPositionSizer`, `DrawdownBrake`
-- Create `notebooks/p_ml10_risk_overlay.ipynb`
+### ~~P-ML10. Risk overlay — drawdown brake + bull cap~~ ✅ COMPLETE — F17 logged
+`RiskOverlay` class created in `ml/risk/overlay.py` with DD brake and bull cap.
+**Result:** DD brake alone is the best overlay (Sharpe +1.334, MaxDD −68.4%), improving on
+binary (+1.234, −77.3%). Bull cap hurts (can't distinguish early vs late bull). Combined
+overlay on scaled signals (+1.518, −33.2%) is marginally worse than P-ML9 scaled alone
+(+1.583, −33.6%). **P-ML9 scaled positioning remains champion.**
+See `notebooks/p_ml10_risk_overlay.ipynb`, F17.
 
 ---
 

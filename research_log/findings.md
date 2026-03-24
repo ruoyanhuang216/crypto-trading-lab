@@ -5,7 +5,7 @@ Each entry references the daily log where it was first observed.
 
 ---
 
-## ML Track — Summary (P-ML2 through P-ML9)
+## ML Track — Summary (P-ML2 through P-ML11)
 
 | Finding | Experiment | Result | Verdict |
 |---|---|---|---|
@@ -17,14 +17,106 @@ Each entry references the daily log where it was first observed.
 | F14 | P-ML7 RegimeEnsemble + momentum (6yr) | **Sharpe +1.261, Return +1998%** — approaches B&H Sharpe +1.379 | New best model |
 | F15 | P-ML8 Volume features (6yr) | Sharpe +0.180 — **worse than P-ML7** despite 8/9 features passing IC | Volume redundant at daily resolution |
 | F16 | P-ML9 Strategy integration | Binary reproduces P-ML7; **Scaled: Sharpe +1.583, MaxDD −33.6%** | Scaled beats B&H on both Sharpe and MaxDD |
+| F17 | P-ML10 Risk overlay (DD brake + bull cap) | DD brake improves Fold 1/2; combined on scaled: Sharpe +1.518, MaxDD −33.2% | P-ML9 scaled remains champion; DD brake adds value on binary signals |
+| F18 | P-ML11 HMM regime (4-state) | Sharpe +1.074 (Exp-A), Fold 2 bull IC −0.132 (no improvement) | **Hypothesis H4 rejected** — HMM cannot detect late-bull |
 
-**Current champion: P-ML9 scaled mode (Sharpe +1.583 vs B&H +1.379, MaxDD −33.6% vs B&H −35.4%).**
+**Current champion: P-ML9 scaled mode (Sharpe +1.583 vs B&H +1.052, MaxDD −33.6% vs B&H −76.6%).**
 
 Dominant improvement axes confirmed: **regime gating + data volume + feature engineering + position sizing**.
-Scaled positioning closes the MaxDD gap entirely (−33.6% vs B&H −35.4%) while improving Sharpe.
+Scaled positioning closes the MaxDD gap entirely and is the single biggest risk-adjusted improvement.
 
-Next planned work: **P-ML10** — dedicated risk overlay (drawdown brake + bull cap) to further
-reduce tail risk beyond what simple z-score scaling achieves.
+The P-ML10 risk overlay (DD brake + bull cap) improves binary signals (Sharpe +1.234 → +1.273,
+MaxDD −77.3% → −68.4%) but adds marginal value on top of P-ML9 scaled positioning, which
+already achieves better risk control through the z-score mechanism.
+
+---
+
+## F18 — HMM Regime Classifier (P-ML11): hypothesis rejected
+**Date:** 2026-03-23 | **Notebook:** `p_ml11_hmm_regime.ipynb`
+
+**Hypothesis H4:** A 4-state Gaussian HMM trained on momentum/volatility features
+(ret_20, atr_pct, mom_zscore_20, ret_5_minus_20) can detect late-bull overextension,
+improving Fold 2 bull IC (−0.128 in P-ML7).
+
+**HMM state discovery (full-dataset fit):**
+- State 0 (bear): mean ret_20 = −0.068, mom_zscore = −0.77
+- State 1 (ranging): mean ret_20 = −0.021, high atr_pct = 0.091
+- State 2 (early bull): mean ret_20 = +0.026, low volatility
+- State 3 (late bull): mean ret_20 = +0.175, mom_zscore = +1.37
+
+**Walk-forward results (5-fold, 6yr dataset):**
+
+| Strategy | Return | Sharpe | MaxDD |
+|---|---|---|---|
+| Baseline (P-ML7 binary) | +1815% | +1.234 | −77.3% |
+| Exp-A (HMM one-hot features) | +1043% | +1.074 | −77.2% |
+| Exp-B (gate=0.0, block late-bull) | +365% | +0.812 | −79.9% |
+| Exp-B (gate=0.5) | +884% | +1.055 | −76.8% |
+
+**Fold 2 bull IC:** Baseline −0.128 → Exp-A −0.132 (delta −0.004). **No improvement.**
+
+**Sensitivity:**
+- n_states: 3 (Sharpe +1.242) > 4 (+1.074) > 5 (+0.918). More states = more overfitting.
+- Seed stability: IC std across 5 seeds = 0.003 (stable, not the problem).
+
+**Key insights:**
+1. The HMM correctly identifies the 4 states semantically (bear/ranging/early-bull/late-bull),
+   but this information does not help LightGBM. The model already has ret_20 and mom_zscore_20
+   as raw features — the HMM one-hot is a discretized, lossy version of the same information.
+2. Gating late-bull longs hurts because many late-bull bars are *correctly* bullish. The ATH
+   crash is a few bars at the end of a long overextension — gating blocks the entire period.
+3. The Fold 2 failure is not a regime classification problem. It is a *timing* problem: the
+   model needs to know *when* the bull will end, not *that* it's extended. This likely
+   requires either (a) cross-asset signals (equity markets, DXY) or (b) on-chain data.
+
+**Hypothesis H4 verdict:** Rejected. HMM regime features hurt overall performance (Sharpe
++1.234 → +1.074) and do not improve Fold 2 bull IC. The observation features overlap with
+existing LightGBM inputs, adding no new information.
+
+---
+
+## F17 — Risk Overlay (P-ML10): drawdown brake + bull cap
+**Date:** 2026-03-23 | **Notebook:** `p_ml10_risk_overlay.ipynb`
+
+**Hypothesis H2:** Risk overlay (drawdown brake + bull cap) reduces MaxDD from −77%
+toward −35% while preserving Sharpe above B&H.
+
+**Overlay components:**
+- **DD brake:** when 30-bar rolling equity DD < −20%, halve all positions
+- **Bull cap:** cap bull-regime long positions at 0.5
+
+**Results (all OOS walk-forward, 5 folds, 6yr dataset):**
+
+| Strategy | Return | Sharpe | Sortino | MaxDD | Calmar |
+|---|---|---|---|---|---|
+| Buy & Hold | +876.6% | +1.052 | +1.394 | −76.6% | 0.78 |
+| P-ML9 binary (ref) | +1815.4% | +1.234 | +2.010 | −77.3% | 1.08 |
+| **P-ML9 scaled (ref)** | **+758.7%** | **+1.583** | **+2.323** | **−33.6%** | **1.65** |
+| DD brake only | +2318.8% | +1.334 | +2.186 | −68.4% | 1.35 |
+| Bull cap only | +1239.4% | +1.146 | +1.841 | −77.3% | 0.91 |
+| Combined (DD+bull) | +1728.8% | +1.273 | +2.073 | −68.4% | 1.20 |
+| Combined on scaled | +645.9% | +1.518 | +2.201 | −33.2% | 1.54 |
+
+**Per-fold analysis:** DD brake adds most value in Fold 1 (2020 crash: Sharpe +0.238 → +0.592)
+and Fold 2 (2021 ATH: Sharpe +0.485 → +0.581). It slightly hurts Folds 4–5 where binary
+signals already perform well (−0.319 and −0.268 Sharpe delta).
+
+**Sensitivity analysis:** Best Sharpe config is dd_thresh=−20%, bull_cap=1.0 (DD brake alone,
+no bull cap). Bull cap hurts because it unconditionally reduces all bull longs, including
+correctly-predicted ones in early/mid bull phases.
+
+**Key insights:**
+1. DD brake on binary signals is the best *risk-overlay-only* improvement: Sharpe +1.334
+   (vs binary +1.234), MaxDD −68.4% (vs −77.3%)
+2. Bull cap hurts more than it helps — it can't distinguish early vs late bull
+3. P-ML9 scaled positioning remains superior because z-score scaling is a *per-prediction*
+   confidence measure, while DD brake is a *portfolio-level* reactive measure
+4. Combined-on-scaled (+1.518, −33.2%) is marginally worse than scaled alone (+1.583, −33.6%)
+   — the DD brake fires too late when positions are already small
+
+**Hypothesis H2 verdict:** Partially confirmed. DD brake reduces MaxDD on binary signals
+(−77.3% → −68.4%) but does not close the gap to B&H (−76.6%). P-ML9 scaled positioning
+remains the champion risk management approach.
 
 ---
 
