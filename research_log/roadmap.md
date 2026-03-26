@@ -1,7 +1,7 @@
 # Roadmap
 
 Current priority list. Updated at the end of each session.
-_Last updated: 2026-03-23 (P-ML11 complete; F18 logged — H4 rejected)_
+_Last updated: 2026-03-24 (P-ML12a complete; F19 logged — cross-asset research)_
 
 ---
 
@@ -175,6 +175,7 @@ P-ML10 DD brake adds value on binary signals but is redundant when scaled positi
 | H3 | Strategy integration (MLStrategy class) | ✅ Confirmed (P-ML9) | `RegimeLGBMStrategy` + scaled mode beats B&H |
 | H4 | HMM regime classifier detects late-bull / overextension | ✅ Rejected (P-ML11) | HMM states overlap with existing features; Fold 2 bull IC unchanged |
 | H5 | Optuna tuning on 16-feature P-ML7 model | Open (low priority) | Squeeze remaining gap vs B&H after risk overlay |
+| H6 | Cross-asset features improve model in Era 4-5 | ✅ Research done (P-ML12a); P-ML12b planned | Asymmetric tail correlation; VIX as regime context |
 
 ---
 

@@ -19,6 +19,7 @@ Each entry references the daily log where it was first observed.
 | F16 | P-ML9 Strategy integration | Binary reproduces P-ML7; **Scaled: Sharpe +1.583, MaxDD −33.6%** | Scaled beats B&H on both Sharpe and MaxDD |
 | F17 | P-ML10 Risk overlay (DD brake + bull cap) | DD brake improves Fold 1/2; combined on scaled: Sharpe +1.518, MaxDD −33.2% | P-ML9 scaled remains champion; DD brake adds value on binary signals |
 | F18 | P-ML11 HMM regime (4-state) | Sharpe +1.074 (Exp-A), Fold 2 bull IC −0.132 (no improvement) | **Hypothesis H4 rejected** — HMM cannot detect late-bull |
+| F19 | P-ML12a Cross-asset comovement | BTC-SPY corr +0.45 (bear), +0.50 (tail); VIX-conditional +0.06 to +0.55 | Correlations real in Era 4-5; asymmetric (crises only); GO for P-ML12b |
 
 **Current champion: P-ML9 scaled mode (Sharpe +1.583 vs B&H +1.052, MaxDD −33.6% vs B&H −76.6%).**
 
@@ -28,6 +29,42 @@ Scaled positioning closes the MaxDD gap entirely and is the single biggest risk-
 The P-ML10 risk overlay (DD brake + bull cap) improves binary signals (Sharpe +1.234 → +1.273,
 MaxDD −77.3% → −68.4%) but adds marginal value on top of P-ML9 scaled positioning, which
 already achieves better risk control through the z-score mechanism.
+
+---
+
+## F19 — Cross-Asset Comovement Research (P-ML12a)
+**Date:** 2026-03-24 | **Notebook:** `p_ml12a_cross_asset_analysis.ipynb`
+
+Comprehensive study of BTC comovements with SPY, QQQ, GLD, TLT, UUP, VIX across
+5 market eras (2019-2025). Research-first approach: understand rationale before
+engineering features.
+
+**Correlation structure (Era 4 Bear, 2022-2024 — strongest institutional link):**
+
+| Asset | Correlation | p-value | Interpretation |
+|---|---|---|---|
+| SPY | +0.453 | < 0.001 | BTC trades as risk asset |
+| QQQ | +0.471 | < 0.001 | Tech/growth proxy, strongest equity link |
+| GLD | +0.131 | < 0.01 | Weak positive — shared store-of-value narrative |
+| TLT | +0.054 | n.s. | No bond relationship |
+| UUP | −0.274 | < 0.001 | Dollar strength hurts BTC |
+| VIX | −0.380 | < 0.001 | BTC is a risk asset, not a hedge |
+
+**Key insight — asymmetric tail dependence:** BTC-SPY correlation = +0.504 in BTC's
+worst decile, +0.005 in best decile. "Correlations go to 1 in crises" is real.
+VIX-conditional analysis confirms: BTC-SPY corr goes from +0.06 (VIX low) to +0.55
+(VIX high). Cross-asset features are useful as **downside risk indicators**.
+
+**Lead-lag:** No significant 1-5 day lead from equities to BTC. After SPY >2% drops,
+BTC averages −2.7% over 3 days (vs +0.3% unconditional) — concurrent/trailing effect.
+
+**Volume:** High-volume SPY days show higher BTC-SPY correlation (Q5: +0.58 vs Q1: +0.32).
+BTC-SPY volume correlation = +0.30 to +0.35 in Eras 4-5.
+
+**Fold 2:** BTC peaked Nov 2021, SPY peaked Jan 2022. BTC *led* equities — cross-asset
+features would have been lagging here. Confirms Fold 2 is partly crypto-idiosyncratic.
+
+**Recommended features for P-ML12b:** `spy_btc_corr_30`, `spy_ret_5`, `vix_level_zscore`.
 
 ---
 
