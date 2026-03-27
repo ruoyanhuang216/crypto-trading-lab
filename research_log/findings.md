@@ -20,6 +20,7 @@ Each entry references the daily log where it was first observed.
 | F17 | P-ML10 Risk overlay (DD brake + bull cap) | DD brake improves Fold 1/2; combined on scaled: Sharpe +1.518, MaxDD −33.2% | P-ML9 scaled remains champion; DD brake adds value on binary signals |
 | F18 | P-ML11 HMM regime (4-state) | Sharpe +1.074 (Exp-A), Fold 2 bull IC −0.132 (no improvement) | **Hypothesis H4 rejected** — HMM cannot detect late-bull |
 | F19 | P-ML12a Cross-asset comovement | BTC-SPY corr +0.45 (bear), +0.50 (tail); VIX-conditional +0.06 to +0.55 | Correlations real in Era 4-5; asymmetric (crises only); GO for P-ML12b |
+| F20 | P-ML12b Cross-asset features (19f) | V3 scaled Sharpe +1.118 vs V2 scaled +0.656 (biz-day dataset); spy_btc_corr_30 rank #2 in bull model | Cross-asset helps scaled mode; `spy_ret_5` rank #1 in non-bull |
 
 **Current champion: P-ML9 scaled mode (Sharpe +1.583 vs B&H +1.052, MaxDD −33.6% vs B&H −76.6%).**
 
@@ -29,6 +30,65 @@ Scaled positioning closes the MaxDD gap entirely and is the single biggest risk-
 The P-ML10 risk overlay (DD brake + bull cap) improves binary signals (Sharpe +1.234 → +1.273,
 MaxDD −77.3% → −68.4%) but adds marginal value on top of P-ML9 scaled positioning, which
 already achieves better risk control through the z-score mechanism.
+
+---
+
+## F20 — Cross-Asset Feature Integration (P-ML12b)
+**Date:** 2026-03-27 | **Notebook:** `p_ml12b_cross_asset_features.ipynb`
+
+Added 3 cross-asset features to the LightGBM model, each encoding a distinct
+macro channel through which traditional markets influence BTC:
+
+### Three macro channels
+
+**1. Institutional rebalancing (`spy_btc_corr_30`)**
+As institutional investors now hold both equities and crypto, portfolio rebalancing
+creates synchronized moves. When a pension fund's risk model triggers an equity selloff,
+their crypto allocation gets sold too. The rolling 30-day BTC-SPY correlation captures
+the *strength* of this link in real time. Bull model importance: **rank #2 of 19** (8.0%
+of gain) — the model learned to weight equity signals based on how coupled BTC is to SPY.
+
+**2. Liquidity / risk-on (`spy_ret_5`)**
+Large equity drops trigger margin calls that cascade across asset classes. Crypto, with
+24/7 trading and high leverage, is particularly vulnerable. The 5-day SPY return captures
+whether the macro environment is risk-on or risk-off. Non-bull model importance: **rank #1
+of 19** (7.1% of gain) — during bear/ranging regimes, the model relies heavily on equity
+momentum as the single most important feature.
+
+**3. Financial conditions (`vix_level_zscore`)**
+VIX captures aggregate market stress. When elevated, lending rates rise, leverage gets
+unwound, and risk assets face headwinds. The z-scored VIX tells the model whether we are
+in a stress regime where cross-asset correlations spike and BTC becomes vulnerable.
+
+### Walk-forward results (5-fold, business-day-aligned dataset)
+
+| Strategy | Return | Sharpe | Sortino | MaxDD |
+|---|---|---|---|---|
+| Buy & Hold | +888.6% | +1.271 | +1.705 | −76.6% |
+| V2 binary (16f, baseline) | +290.4% | +0.931 | +1.237 | −64.9% |
+| V3 binary (19f, +cross) | +99.3% | +0.680 | +0.899 | −67.3% |
+| V2 scaled (16f) | +84.7% | +0.656 | +0.706 | −33.6% |
+| **V3 scaled (19f, +cross)** | **+241.5%** | **+1.118** | **+1.435** | **−40.7%** |
+
+### Key insights
+
+1. **V3 scaled dramatically outperforms V2 scaled** (Sharpe +1.118 vs +0.656) — cross-asset
+   features add genuine value when combined with confidence-weighted positioning.
+
+2. **V3 binary underperforms V2 binary** (Sharpe +0.680 vs +0.931) — echoing the P-ML8 lesson:
+   adding features to a binary model can hurt via split fragmentation. But scaled positioning
+   controls this by reducing size on uncertain predictions.
+
+3. **IC improved:** Mean IC +0.0165 (V3) vs +0.0084 (V2), ICIR 0.268 vs 0.187. The cross-asset
+   features add real information.
+
+4. **Feature importance is economically intuitive:** `spy_btc_corr_30` is the #2 feature in the
+   bull model (institutional link matters most when going long), while `spy_ret_5` is the #1
+   feature in the non-bull model (equity risk-off drives crypto bear markets).
+
+5. **Dataset caveat:** This walk-forward uses business-day-only data (~1469 bars) vs the original
+   P-ML7/P-ML9 all-days data (~2100+ bars). Absolute Sharpe/Return numbers are not directly
+   comparable to the roadmap scoreboard. The fair comparison is V2 vs V3 within this notebook.
 
 ---
 

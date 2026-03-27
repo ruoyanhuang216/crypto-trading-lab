@@ -1,7 +1,7 @@
 # Roadmap
 
 Current priority list. Updated at the end of each session.
-_Last updated: 2026-03-24 (P-ML12a complete; F19 logged — cross-asset research)_
+_Last updated: 2026-03-27 (P-ML12b complete; F20 logged — cross-asset features work in scaled mode)_
 
 ---
 
@@ -101,6 +101,8 @@ See `ml/models/lstm.py`, `notebooks/p_ml6_lstm.ipynb`, F13.
 | P-ML10 comb+scaled | RiskOverlay on scaled (16f, 6yr) | +1.518 | +645.9% | −33.2% | DD+bull on P-ML9 scaled |
 | P-ML11 Exp-A | HMM features (20f, 6yr) | +1.074 | +1043.0% | −77.2% | +4 HMM one-hot (H4 rejected) |
 | P-ML11 Exp-B | HMM gating (gate=0.5, 6yr) | +1.055 | +884.1% | −76.8% | Block late-bull longs (H4 rejected) |
+| P-ML12b V3 binary | RegimeEnsemble (19f, biz-day) | +0.680 | +99.3% | −67.3% | +3 cross-asset (hurts binary) |
+| **P-ML12b V3 scaled** | **RegimeEnsemble scaled (19f, biz-day)** | **+1.118** | **+241.5%** | **−40.7%** | **+3 cross-asset (helps scaled)** |
 | *Buy & Hold* | *—* | *+1.052* | *+876.6%* | *−76.6%* | *Benchmark* |
 
 **Current best: P-ML9 scaled (Sharpe +1.583, MaxDD −33.6%). Beats B&H on both Sharpe (+0.531) and MaxDD (+43.0pp).**
@@ -159,7 +161,15 @@ P-ML10 DD brake adds value on binary signals but is redundant when scaled positi
    overextension period, not just the crash). The Fold 2 failure requires *timing* signals (when the
    bull ends), not *classification* signals (that it's extended).
 
-10. **Passing an IC screen is necessary but not sufficient for feature inclusion.** P-ML8 added
+10. **Exogenous cross-asset features add genuine value — but only with scaled positioning.**
+    P-ML12b added 3 features from SPY/VIX (institutional correlation, equity momentum, VIX stress).
+    V3 scaled Sharpe improved from +0.656 to +1.118 (+70%), while V3 binary *worsened* (0.931→0.680).
+    The model learned economically intuitive relationships: `spy_btc_corr_30` is the #2 bull feature
+    (institutional link strength), `spy_ret_5` is the #1 non-bull feature (equity risk-off drives
+    crypto bears). Scaled positioning is critical because it prevents the additional features from
+    causing aggressive positions on ambiguous signals (the P-ML8 overfitting failure mode).
+
+11. **Passing an IC screen is necessary but not sufficient for feature inclusion.** P-ML8 added
    8 volume features that all passed |IC_bull| > 0.01, yet ensemble Sharpe collapsed
    (+1.261 → +0.180). Root cause: 8 correlated volume features fragment LightGBM's split
    allocation across near-duplicate signals, causing overfitting. Rule: add at most 1–2 new
@@ -175,7 +185,7 @@ P-ML10 DD brake adds value on binary signals but is redundant when scaled positi
 | H3 | Strategy integration (MLStrategy class) | ✅ Confirmed (P-ML9) | `RegimeLGBMStrategy` + scaled mode beats B&H |
 | H4 | HMM regime classifier detects late-bull / overextension | ✅ Rejected (P-ML11) | HMM states overlap with existing features; Fold 2 bull IC unchanged |
 | H5 | Optuna tuning on 16-feature P-ML7 model | Open (low priority) | Squeeze remaining gap vs B&H after risk overlay |
-| H6 | Cross-asset features improve model in Era 4-5 | ✅ Research done (P-ML12a); P-ML12b planned | Asymmetric tail correlation; VIX as regime context |
+| H6 | Cross-asset features improve model in Era 4-5 | ✅ Confirmed (P-ML12b) | V3 scaled Sharpe +1.118 vs V2 +0.656; spy_ret_5 rank #1 in non-bull |
 
 ---
 
