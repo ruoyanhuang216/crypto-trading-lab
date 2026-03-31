@@ -1,7 +1,7 @@
 # Roadmap
 
 Current priority list. Updated at the end of each session.
-_Last updated: 2026-03-30 (P-ML13 complete; F21 logged — V2 remains champion on 7-day data)_
+_Last updated: 2026-03-30 (P-ML14 complete; F22 logged — weekday strategy has best MaxDD)_
 
 ---
 
@@ -103,6 +103,9 @@ See `ml/models/lstm.py`, `notebooks/p_ml6_lstm.ipynb`, F13.
 | P-ML11 Exp-B | HMM gating (gate=0.5, 6yr) | +1.055 | +884.1% | −76.8% | Block late-bull longs (H4 rejected) |
 | P-ML12b V3 binary | RegimeEnsemble (19f, biz-day) | +0.680 | +99.3% | −67.3% | +3 cross-asset (hurts binary) |
 | **P-ML12b V3 scaled** | **RegimeEnsemble scaled (19f, biz-day)** | **+1.118** | **+241.5%** | **−40.7%** | **+3 cross-asset (helps scaled)** |
+| P-ML13 V3 / 7-day scaled | RegimeEnsemble scaled (19f, 7-day ffill) | +1.360 | +742.8% | −36.8% | V2 still wins on 7-day |
+| P-ML14 V2-weekday scaled | RegimeEnsemble scaled (16f, weekday-flat) | +1.454 | +408.7% | **−25.9%** | Best MaxDD; trades Sharpe for safety |
+| P-ML14 V3-weekday scaled | RegimeEnsemble scaled (19f, weekday-flat) | +1.036 | +302.3% | −38.0% | V3 loses to V2 even weekday-only |
 | *Buy & Hold* | *—* | *+1.052* | *+876.6%* | *−76.6%* | *Benchmark* |
 
 **Current best: P-ML9 scaled / V2 / 7-day (Sharpe +1.583, MaxDD −33.6%). Confirmed by P-ML13 unified comparison.**

@@ -22,6 +22,7 @@ Each entry references the daily log where it was first observed.
 | F19 | P-ML12a Cross-asset comovement | BTC-SPY corr +0.45 (bear), +0.50 (tail); VIX-conditional +0.06 to +0.55 | Correlations real in Era 4-5; asymmetric (crises only); GO for P-ML12b |
 | F20 | P-ML12b Cross-asset features (19f) | V3 scaled Sharpe +1.118 vs V2 scaled +0.656 (biz-day dataset); spy_btc_corr_30 rank #2 in bull model | Cross-asset helps scaled mode; `spy_ret_5` rank #1 in non-bull |
 | F21 | P-ML13 Unified comparison (V2 vs V3) | V2 wins 4/6 metrics; 7-day V2 scaled Sharpe +1.583 vs V3 +1.360 | **V2 remains champion** — cross-asset features hurt on 7-day data |
+| F22 | P-ML14 Weekday-only strategy | V2-weekday scaled: Sharpe +1.454, MaxDD −25.9%; V3-weekday: +1.036 | Weekend flat reduces MaxDD but also Sharpe; V3 still loses to V2 |
 
 **Current champion: P-ML9 scaled mode (Sharpe +1.583 vs B&H +1.052, MaxDD −33.6% vs B&H −76.6%).**
 
@@ -31,6 +32,45 @@ Scaled positioning closes the MaxDD gap entirely and is the single biggest risk-
 The P-ML10 risk overlay (DD brake + bull cap) improves binary signals (Sharpe +1.234 → +1.273,
 MaxDD −77.3% → −68.4%) but adds marginal value on top of P-ML9 scaled positioning, which
 already achieves better risk control through the z-score mechanism.
+
+---
+
+## F22 — Weekday-Only Strategy (P-ML14): interesting MaxDD finding
+**Date:** 2026-03-30 | **Notebook:** `p_ml14_weekday_strategy.ipynb`
+
+Tested three strategy variants on the full 7-day BTC price series:
+
+| Strategy | Sharpe | Return | MaxDD |
+|---|---|---|---|
+| **V2-24/7 scaled (champion)** | **+1.583** | **+758.7%** | **-33.6%** |
+| V2-weekday scaled | +1.454 | +408.7% | **-25.9%** |
+| V3-weekday scaled | +1.036 | +302.3% | -38.0% |
+| Buy & Hold | +1.052 | +876.6% | -76.6% |
+
+**Three key findings:**
+
+1. **V2-24/7 remains champion on Sharpe** (+1.583). Weekend exposure adds return (+758%
+   vs +409%) that more than compensates for added volatility. BTC weekday cumulative
+   return is +1396% vs weekend +64% — weekdays dominate but weekends still contribute.
+
+2. **V2-weekday has the lowest MaxDD** (-25.9% vs -33.6%). Going flat on weekends is a
+   genuine risk reduction — it avoids weekend flash crashes and thin-liquidity episodes.
+   For risk-constrained investors, V2-weekday is a viable alternative that trades Sharpe
+   (-0.13) for significantly better tail risk (-7.7pp MaxDD improvement).
+
+3. **V3-weekday loses to V2-weekday** (-0.418 Sharpe). Cross-asset features do not help
+   even when restricted to weekday-only trading on the 7-day equity series. The P-ML12b
+   result (V3 winning on business-day-only dataset) appears to have been a dataset artefact
+   from the smaller bar count, not a genuine signal improvement.
+
+**Economic interpretation:**
+- BTC's weekend returns are small but positive (+0.08%/day) with lower volatility (2.4%
+  vs 3.9% weekday). This is consistent with weekend being "drift without catalysts" — the
+  model's predictions carry forward reasonably, and flattening sacrifices this drift.
+- The institutional/liquidity/dollar channels are real macro forces but too noisy at daily
+  frequency to improve predictions. The cross-asset research (P-ML12a) remains valuable
+  for understanding *why* BTC correlates with equities, even if the features don't help
+  the LightGBM model.
 
 ---
 
