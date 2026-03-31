@@ -21,6 +21,7 @@ Each entry references the daily log where it was first observed.
 | F18 | P-ML11 HMM regime (4-state) | Sharpe +1.074 (Exp-A), Fold 2 bull IC −0.132 (no improvement) | **Hypothesis H4 rejected** — HMM cannot detect late-bull |
 | F19 | P-ML12a Cross-asset comovement | BTC-SPY corr +0.45 (bear), +0.50 (tail); VIX-conditional +0.06 to +0.55 | Correlations real in Era 4-5; asymmetric (crises only); GO for P-ML12b |
 | F20 | P-ML12b Cross-asset features (19f) | V3 scaled Sharpe +1.118 vs V2 scaled +0.656 (biz-day dataset); spy_btc_corr_30 rank #2 in bull model | Cross-asset helps scaled mode; `spy_ret_5` rank #1 in non-bull |
+| F21 | P-ML13 Unified comparison (V2 vs V3) | V2 wins 4/6 metrics; 7-day V2 scaled Sharpe +1.583 vs V3 +1.360 | **V2 remains champion** — cross-asset features hurt on 7-day data |
 
 **Current champion: P-ML9 scaled mode (Sharpe +1.583 vs B&H +1.052, MaxDD −33.6% vs B&H −76.6%).**
 
@@ -30,6 +31,43 @@ Scaled positioning closes the MaxDD gap entirely and is the single biggest risk-
 The P-ML10 risk overlay (DD brake + bull cap) improves binary signals (Sharpe +1.234 → +1.273,
 MaxDD −77.3% → −68.4%) but adds marginal value on top of P-ML9 scaled positioning, which
 already achieves better risk control through the z-score mechanism.
+
+---
+
+## F21 — Unified Dataset Comparison (P-ML13): V2 remains champion
+**Date:** 2026-03-30 | **Notebook:** `p_ml13_unified_comparison.ipynb`
+
+Ran V2 (16f) and V3 (19f) on both 7-day and business-day datasets with matched splits.
+
+**The definitive comparison:**
+
+| Config | Dataset | Mode | Sharpe | Return | MaxDD | Mean IC |
+|---|---|---|---|---|---|---|
+| **V2** | **7-day** | **scaled** | **+1.583** | **+758.7%** | **-33.6%** | **+0.074** |
+| V3 | 7-day | scaled | +1.360 | +742.8% | -36.8% | +0.054 |
+| V2 | 7-day | binary | +1.234 | +1815.4% | -77.3% | +0.074 |
+| V3 | 7-day | binary | +0.409 | +32.5% | -81.4% | +0.054 |
+| V2 | biz-day | scaled | +0.656 | +84.7% | -33.6% | +0.008 |
+| V3 | biz-day | scaled | +1.118 | +241.5% | -40.7% | +0.017 |
+
+**Verdict: V2 wins 4/6 comparisons. V2 (FEATURES_V2, 16f) remains champion.**
+
+**Why V3 lost on the primary 7-day dataset:**
+The cross-asset features (SPY, VIX) are forward-filled from Friday into Saturday/Sunday.
+These stale values add noise on ~28% of bars, degrading the model. The institutional/
+liquidity/dollar channels identified in F19 are *real* but the daily-frequency features
+are not strong enough to overcome weekend forward-fill noise.
+
+**Nuance — V3 wins on business-day scaled:** When weekends are excluded (exact TradFi
+alignment), V3 scaled outperforms V2 scaled (+1.118 vs +0.656). This confirms the
+cross-asset signal is real but only exploitable when both markets are actively trading.
+
+**Fold 2 improvement:** V3 bull IC in Fold 2 improved from −0.128 to −0.072 on 7-day
+data — the cross-asset features partially helped with the ATH timing problem, but not
+enough to compensate for losses elsewhere.
+
+**Implication for production:** If a strategy trades only on weekdays (no weekend positions),
+V3 may be preferred. For a 24/7 BTC strategy, V2 is definitively better.
 
 ---
 

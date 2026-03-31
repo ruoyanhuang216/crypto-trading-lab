@@ -1,7 +1,7 @@
 # Roadmap
 
 Current priority list. Updated at the end of each session.
-_Last updated: 2026-03-27 (P-ML12b complete; F20 logged — cross-asset features work in scaled mode)_
+_Last updated: 2026-03-30 (P-ML13 complete; F21 logged — V2 remains champion on 7-day data)_
 
 ---
 
@@ -105,9 +105,9 @@ See `ml/models/lstm.py`, `notebooks/p_ml6_lstm.ipynb`, F13.
 | **P-ML12b V3 scaled** | **RegimeEnsemble scaled (19f, biz-day)** | **+1.118** | **+241.5%** | **−40.7%** | **+3 cross-asset (helps scaled)** |
 | *Buy & Hold* | *—* | *+1.052* | *+876.6%* | *−76.6%* | *Benchmark* |
 
-**Current best: P-ML9 scaled (Sharpe +1.583, MaxDD −33.6%). Beats B&H on both Sharpe (+0.531) and MaxDD (+43.0pp).**
-Scaled positioning via 60-bar pred z-score is the single biggest risk-adjusted improvement to date.
-P-ML10 DD brake adds value on binary signals but is redundant when scaled positioning is already active.
+**Current best: P-ML9 scaled / V2 / 7-day (Sharpe +1.583, MaxDD −33.6%). Confirmed by P-ML13 unified comparison.**
+P-ML13 tested V2 vs V3 on both 7-day and business-day datasets. V2 wins 4/6. Cross-asset features
+help on business-day data but not on 7-day (weekend forward-fill noise). V2 remains the champion.
 
 ### Key learnings
 
@@ -185,7 +185,7 @@ P-ML10 DD brake adds value on binary signals but is redundant when scaled positi
 | H3 | Strategy integration (MLStrategy class) | ✅ Confirmed (P-ML9) | `RegimeLGBMStrategy` + scaled mode beats B&H |
 | H4 | HMM regime classifier detects late-bull / overextension | ✅ Rejected (P-ML11) | HMM states overlap with existing features; Fold 2 bull IC unchanged |
 | H5 | Optuna tuning on 16-feature P-ML7 model | Open (low priority) | Squeeze remaining gap vs B&H after risk overlay |
-| H6 | Cross-asset features improve model in Era 4-5 | ✅ Confirmed (P-ML12b) | V3 scaled Sharpe +1.118 vs V2 +0.656; spy_ret_5 rank #1 in non-bull |
+| H6 | Cross-asset features improve model | ✅ Partially confirmed (P-ML12b/13) | Helps on biz-day data but not on 7-day (weekend ffill noise). V2 remains champion. |
 
 ---
 
