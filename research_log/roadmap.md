@@ -172,7 +172,16 @@ help on business-day data but not on 7-day (weekend forward-fill noise). V2 rema
     crypto bears). Scaled positioning is critical because it prevents the additional features from
     causing aggressive positions on ambiguous signals (the P-ML8 overfitting failure mode).
 
-11. **Passing an IC screen is necessary but not sufficient for feature inclusion.** P-ML8 added
+11. **Macro channels are real but not exploitable at daily frequency for 24/7 crypto.**
+    The cross-asset research arc (P-ML12a through P-ML14) established that BTC-SPY
+    correlation is driven by institutional rebalancing (+0.45 in bear), asymmetric tail
+    dependence (+0.50 in crises), and VIX-mediated stress. These channels are economically
+    significant but the daily-frequency features cannot overcome the weekend forward-fill
+    noise in a 7-day BTC model. V3 (19f) loses to V2 (16f) in every matched comparison.
+    However, the research produced an actionable finding: V2-weekday-flat achieves the
+    best MaxDD (−25.9%) by avoiding weekend exposure, a genuine risk reduction strategy.
+
+12. **Passing an IC screen is necessary but not sufficient for feature inclusion.** P-ML8 added
    8 volume features that all passed |IC_bull| > 0.01, yet ensemble Sharpe collapsed
    (+1.261 → +0.180). Root cause: 8 correlated volume features fragment LightGBM's split
    allocation across near-duplicate signals, causing overfitting. Rule: add at most 1–2 new
@@ -258,28 +267,48 @@ and BollingerBreakout across 5 rolling OOS windows on full-year 2024 BTC/USDT 1h
 
 ---
 
-## Later — Lower Priority
+## Next Planned — Post Cross-Asset
 
-### P5. Regime-aware advanced strategy
-Combine volatility signals (BB width) and trend signals (ADX) into the first
-`strategies/single/advanced/` strategy that switches between mean-reversion
-and breakout mode based on the detected regime.
-**Depends on:** P1, P2
+### P-ML15. Optuna hyperparameter tuning
+**Priority: HIGH — last major lever before diminishing returns.**
 
-### P6. Per-trade metrics
-Add trade-log based metrics (profit factor, avg trade duration, trade count)
-to complement the equity-curve metrics in `backtesting/metrics.py`.
+LightGBM defaults (300 trees, depth 4, lr 0.05) and scaled positioning parameters
+(window=60, scale=0.5) were hand-picked. Optuna can jointly optimise:
+- Model: `n_estimators`, `max_depth`, `learning_rate`, `min_child_samples`, `reg_alpha/lambda`
+- Positioning: `pred_zscore_window`, `position_scale`
+- Regime-specific: separate hyperparams for bull vs non-bull models
+- Objective: Sharpe ratio on inner purged CV fold
 
-### P7. Parameter optimisation with Optuna
-The `tuning/` folder exists but is empty. Wire up Optuna to optimise strategy
-parameters (BB period, num_std, ADX threshold) with proper cross-validation.
-**Depends on:** P4
+Expected impact: +0.1 to +0.3 Sharpe. Apply to both V2-24/7 and V2-weekday.
+
+### P-ML16. Expanding window walk-forward
+Current rolling window discards early training data as it moves forward.
+Expanding (anchored) window keeps all history. Quick comparison to check
+if more training data improves later folds.
+
+### P-ML17. Production pipeline
+Wrap V2-24/7 and V2-weekday into clean strategy classes with:
+- Live OHLCV ingestion from exchange API
+- Automated regime detection + prediction + position sizing
+- Weekend-flat toggle for institutional variant
 
 ---
 
-## Parking Lot — Ideas to revisit later
+## Lower Priority
+
+### P-ML18. Weekly-frequency cross-asset
+The institutional/liquidity/dollar channels (F19) may work at weekly bars
+where weekend alignment is a non-issue. Requires rebuilding the feature matrix
+at weekly frequency and re-running walk-forward.
+
+### P-ML19. On-chain / funding rate features
+Crypto-native data (exchange flows, funding rates, open interest) that doesn't
+have TradFi alignment issues. May help with the Fold 2 problem (crypto-specific events).
+
+---
+
+## Parking Lot
 
 - Pairs trading strategies (`strategies/pairs/`)
 - Cross-exchange arbitrage (`strategies/arbitrage/`)
-- ML-based regime classifier (`signals/regime/hmm.py`)
 - Live paper trading integration
