@@ -23,6 +23,7 @@ Each entry references the daily log where it was first observed.
 | F20 | P-ML12b Cross-asset features (19f) | V3 scaled Sharpe +1.118 vs V2 scaled +0.656 (biz-day dataset); spy_btc_corr_30 rank #2 in bull model | Cross-asset helps scaled mode; `spy_ret_5` rank #1 in non-bull |
 | F21 | P-ML13 Unified comparison (V2 vs V3) | V2 wins 4/6 metrics; 7-day V2 scaled Sharpe +1.583 vs V3 +1.360 | **V2 remains champion** — cross-asset features hurt on 7-day data |
 | F22 | P-ML14 Weekday-only strategy | V2-weekday scaled: Sharpe +1.454, MaxDD −25.9%; V3-weekday: +1.036 | Weekend flat reduces MaxDD but also Sharpe; V3 still loses to V2 |
+| F23 | P-ML15 Optuna tuning of V2-24/7 scaled | Inner-CV Sharpe +1.612, outer-WF Sharpe +0.980 vs defaults +1.583 (Δ −0.604) | **Hypothesis rejected** — hand-picked defaults beat tuned params; classic inner-CV overfit |
 
 **Current champion: P-ML9 scaled mode (Sharpe +1.583 vs B&H +1.052, MaxDD −33.6% vs B&H −76.6%).**
 
@@ -32,6 +33,88 @@ Scaled positioning closes the MaxDD gap entirely and is the single biggest risk-
 The P-ML10 risk overlay (DD brake + bull cap) improves binary signals (Sharpe +1.234 → +1.273,
 MaxDD −77.3% → −68.4%) but adds marginal value on top of P-ML9 scaled positioning, which
 already achieves better risk control through the z-score mechanism.
+
+---
+
+## F23 — Optuna tuning of V2-24/7 scaled (P-ML15): hypothesis rejected
+**Date:** 2026-05-06 | **Ref:** [2026-05-06](daily/2026-05-06.md) | **Notebook:** `p_ml15_optuna_tuning.ipynb`
+
+100-trial Optuna study (TPE + MedianPruner) on the 7-dim search space agreed
+2026-04-17. Inner CV: 3 purged folds, mean Sharpe objective. Outer 5-fold WF
+on 6yr (2019-2025, 2,132 bars) for reporting. 35 trials completed, 65 pruned.
+
+**Best inner-CV Sharpe: +1.6119** (vs hand-picked-defaults inner expectation
+~+1.45–1.55). Best params:
+
+| Param | Tuned | Default |
+|---|---|---|
+| `n_estimators` | 450 | 300 |
+| `max_depth` | **8** *(top of range)* | 4 |
+| `learning_rate` | 0.01171 | 0.05 |
+| `min_child_samples` | **49** *(top of range)* | 20 |
+| `reg_alpha` | 0.51408 | 0.0 |
+| `reg_lambda` | 0.00340 | 0.0 |
+| `pred_zscore_window` | 50 | 60 |
+| `position_scale` | 0.46268 | 0.50 |
+
+**Outer 5-fold WF results (the metric that matters):**
+
+| Config | Sharpe | Return | MaxDD | Mean IC | ICIR |
+|---|---|---|---|---|---|
+| **V2-24/7 scaled (defaults / champion)** | **+1.583** | **+758.7%** | **−33.6%** | **+0.0740** | **+1.779** |
+| V2-24/7 scaled (Optuna-tuned) | +0.980 | +242.4% | −34.4% | +0.0252 | +0.522 |
+| V2-24/7 binary (Optuna-tuned) | +0.356 | +0.9% | −84.8% | — | — |
+| V2-24/7 binary (defaults) | +1.234 | +1815.4% | −77.3% | — | — |
+| B&H | +1.166 | +2349.0% | −76.6% | — | — |
+
+**Lift = −0.604 Sharpe → triggers the "lift < +0.05" decision-rule branch:
+P-ML15 DONE.**
+
+**Why tuning lost (root cause):**
+
+1. **Inner CV overfit.** The TPE sampler optimised aggressively against three
+   specific inner-fold regime mixes (Sharpe +1.61) but the chosen point did not
+   generalise to the outer 5 folds (Sharpe +0.98). The +0.63 inner-vs-outer gap
+   is the signature of optimiser-selection bias: in a 7-dim space at 100 trials,
+   TPE finds idiosyncratic local maxima that the outer-fold split exposes.
+
+2. **Bull-model fragility on extreme params.** The chosen `min_child_samples=49`
+   sits at the top of the search range. With only ~130 bull bars per outer
+   training fold, the bull sub-model effectively cannot grow trees and produces
+   a near-constant predictor → tuned bull IC is `nan` in every outer fold (vs
+   defaults bull IC = +0.058 to +0.071 in folds 4–5). Inner CV's different
+   fold boundaries hid this — that fold mix happened to have enough bull bars
+   to fit, and the tuner could not see the failure mode.
+
+3. **Per-fold IC degradation is fold-1-driven.** Tuned IC drops from +0.072 to
+   −0.070 on Fold 1 alone (Δ −0.142), wiping out the outer-mean IC. Folds 2–5
+   are mixed (+0.048, −0.079, +0.002, −0.073). Tuned mean IC = +0.0252 vs
+   defaults +0.0740; ICIR collapses from +1.779 to +0.522.
+
+**Verdict: hypothesis rejected.** The +0.10–0.25 Sharpe lift expected on
+2026-04-17 did not materialise — the lift was deeply negative (−0.604).
+Hand-picked defaults from P-ML7/P-ML9 were not just "near-optimal", they were
+**actively better than what TPE found in 100 trials**.
+
+**Useful corollary:** the remaining alpha is not in the hyperparameter surface
+of `RegimeEnsemble`. Future model-side improvements should look at
+*architectural* changes (per-regime hyperparams so the bull sub-model is tuned
+on its own data, longer horizon for the bull model, or new signal types), not
+parameter tuning.
+
+**Implication for tuning generally on this lab:** future Optuna work should
+either (a) use nested per-outer-fold CV to surface generalisation gaps even at
+~5× the budget, or (b) add a bull-coverage validity constraint to reject
+configurations where the bull sub-model cannot fit. The 2026-04-17 design's
+shared-study 3-fold CV was efficient for budget but — as suspected and
+documented in that day's tradeoff table — too narrow against an 8-dim space
+where regime-specific failure modes exist.
+
+**Next:** P-ML16 (expanding-window WF) is the next planned experiment in the
+roadmap. Alternatively, P-ML19 (on-chain / funding-rate features) is now
+arguably higher-EV: F23 confirms the Fold-2 ATH+crash problem is not a
+tuning issue, so new *data signals* (not new fits to existing data) are the
+remaining lever.
 
 ---
 

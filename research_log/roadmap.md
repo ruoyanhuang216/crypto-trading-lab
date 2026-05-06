@@ -1,7 +1,7 @@
 # Roadmap
 
 Current priority list. Updated at the end of each session.
-_Last updated: 2026-03-30 (P-ML14 complete; F22 logged — weekday strategy has best MaxDD)_
+_Last updated: 2026-05-06 (P-ML15 complete — REJECTED; F23 logged — Optuna lost to hand-picked defaults)_
 
 ---
 
@@ -106,6 +106,7 @@ See `ml/models/lstm.py`, `notebooks/p_ml6_lstm.ipynb`, F13.
 | P-ML13 V3 / 7-day scaled | RegimeEnsemble scaled (19f, 7-day ffill) | +1.360 | +742.8% | −36.8% | V2 still wins on 7-day |
 | P-ML14 V2-weekday scaled | RegimeEnsemble scaled (16f, weekday-flat) | +1.454 | +408.7% | **−25.9%** | Best MaxDD; trades Sharpe for safety |
 | P-ML14 V3-weekday scaled | RegimeEnsemble scaled (19f, weekday-flat) | +1.036 | +302.3% | −38.0% | V3 loses to V2 even weekday-only |
+| P-ML15 Optuna-tuned scaled | RegimeEnsemble scaled (16f, 6yr, tuned) | +0.980 | +242.4% | −34.4% | **Inner CV +1.612 → outer +0.980 (overfit)** |
 | *Buy & Hold* | *—* | *+1.052* | *+876.6%* | *−76.6%* | *Benchmark* |
 
 **Current best: P-ML9 scaled / V2 / 7-day (Sharpe +1.583, MaxDD −33.6%). Confirmed by P-ML13 unified comparison.**
@@ -187,6 +188,18 @@ help on business-day data but not on 7-day (weekend forward-fill noise). V2 rema
    allocation across near-duplicate signals, causing overfitting. Rule: add at most 1–2 new
    features at a time, or use forward selection, not batch inclusion.
 
+13. **Hand-picked defaults beat Optuna in this regime.** P-ML15 ran 100 TPE trials over
+    a 7-dim search space; inner-CV best Sharpe +1.612 mapped to outer-WF Sharpe +0.980,
+    a −0.604 lift vs the +1.583 hand-picked baseline. Two diagnostic root causes:
+    (a) **inner-CV overfit** — 3-fold inner Sharpe overstates outer 5-fold Sharpe by
+    +0.63 because TPE finds idiosyncratic optima that the outer split exposes; and
+    (b) **bull-model fragility** — `min_child_samples=49` on ~130 bull bars/fold makes
+    the bull sub-model degenerate (Bull IC = nan in every outer fold). Inner CV's
+    different fold boundaries hid this failure mode. The remaining alpha is not in the
+    hyperparameter surface; future tuning needs nested per-outer-fold CV or a
+    bull-coverage validity constraint, but more impactful work lies elsewhere
+    (per-regime hyperparams, on-chain features). See F23.
+
 ### Open hypotheses (ordered by expected impact)
 
 | # | Hypothesis | Status | Mechanism |
@@ -196,7 +209,7 @@ help on business-day data but not on 7-day (weekend forward-fill noise). V2 rema
 | H2 | Risk overlay (DD brake + bull cap) fixes MaxDD | ✅ Partially confirmed (P-ML10) | DD brake reduces binary MaxDD (−77→−68%); redundant on scaled signals |
 | H3 | Strategy integration (MLStrategy class) | ✅ Confirmed (P-ML9) | `RegimeLGBMStrategy` + scaled mode beats B&H |
 | H4 | HMM regime classifier detects late-bull / overextension | ✅ Rejected (P-ML11) | HMM states overlap with existing features; Fold 2 bull IC unchanged |
-| H5 | Optuna tuning on 16-feature P-ML7 model | Open (low priority) | Squeeze remaining gap vs B&H after risk overlay |
+| H5 | Optuna tuning on 16-feature P-ML7 model | ✅ Rejected (P-ML15) | Inner-CV overfit; tuned outer Sharpe +0.980 vs defaults +1.583 |
 | H6 | Cross-asset features improve model | ✅ Partially confirmed (P-ML12b/13) | Helps on biz-day data but not on 7-day (weekend ffill noise). V2 remains champion. |
 
 ---
@@ -269,22 +282,94 @@ and BollingerBreakout across 5 rolling OOS windows on full-year 2024 BTC/USDT 1h
 
 ## Next Planned — Post Cross-Asset
 
-### P-ML15. Optuna hyperparameter tuning
-**Priority: HIGH — last major lever before diminishing returns.**
+### ~~P-ML15. Optuna hyperparameter tuning~~ ✅ COMPLETE — REJECTED — F23 logged
+100-trial TPE study on the 7-dim search space (LightGBM × scaled positioning) gave
+**inner-CV Sharpe +1.612 but outer-WF Sharpe +0.980 vs defaults +1.583** (Δ −0.604).
+Two root causes diagnosed: (a) inner-CV overfit (3-fold inner-vs-5-fold-outer gap
+of +0.63 Sharpe), (b) bull-sub-model fragility — `min_child_samples=49` on ~130
+bull bars/fold makes the bull model degenerate (Bull IC = nan everywhere). Inner
+CV's different fold boundaries hid the failure mode.
 
-LightGBM defaults (300 trees, depth 4, lr 0.05) and scaled positioning parameters
-(window=60, scale=0.5) were hand-picked. Optuna can jointly optimise:
-- Model: `n_estimators`, `max_depth`, `learning_rate`, `min_child_samples`, `reg_alpha/lambda`
-- Positioning: `pred_zscore_window`, `position_scale`
-- Regime-specific: separate hyperparams for bull vs non-bull models
-- Objective: Sharpe ratio on inner purged CV fold
+**Hand-picked defaults remain champion.** The +0.10–0.25 Sharpe expected lift
+from 2026-04-17 was not realised. Lift < +0.05 → decision rule branch fires:
+P-ML15 done; remaining alpha is not in the hyperparameter surface.
 
-Expected impact: +0.1 to +0.3 Sharpe. Apply to both V2-24/7 and V2-weekday.
+If revisited (low priority): use nested per-outer-fold CV or add a bull-coverage
+validity constraint that rejects param configs where the bull sub-model degenerates.
+See `notebooks/p_ml15_optuna_tuning.ipynb`, F23.
+
+### P-ML19. Funding rate features  *(promoted to top of queue after F23)*
+**Priority: HIGH — F23 explicitly redirects effort from "more fits to existing
+data" toward "new data signals". Funding rates are the highest-EV candidate
+because they capture leverage / sentiment dynamics that price-derived features
+cannot — directly targeting the Fold 2 ATH+crash failure mode (F14, F23).**
+
+**Hypothesis (H7).** Persistently elevated funding in a bull regime is a leading
+indicator of overextension and impending drawdown. Adding funding-rate-derived
+features to FEATURES_V2 should improve Fold 2 bull IC (currently −0.128 with
+defaults — the structural failure flagged in learning #5).
+
+**Phase 1 — Funding rate + open interest (this experiment).**
+Data sources (Binance perp BTCUSDT):
+- Funding rate — 8h cadence (3 obs/day) from 2019-09 onward
+- Open interest — daily snapshot from ~2020 onward (verify exact start)
+
+Feature candidates:
+- `funding_rate_3d_mean` — recent leverage skew (rolling 9-funding mean)
+- `funding_rate_zscore_30d` — relative-to-history extremity
+- `funding_persistence_3d` — fraction of last 9 fundings same-sign (crowded-trade proxy)
+- `oi_log_chg_7d` — leverage build-up rate
+- `oi_zscore_30d` — relative OI level
+- `funding_x_oi_zscore` — interaction (high funding × high OI = squeeze setup)
+
+**Validation methodology** (mirrors P-ML8 / F15 — the volume-features failure
+that produced learning #12):
+1. **Data availability check.** Confirm coverage from 2019-09 onward. If the
+   dataset shortens vs 6yr V2, re-baseline V2 on the same window so the
+   comparison is apples-to-apples.
+2. **IC screen.** |IC_total| > 0.01 AND |IC_bull| > 0.01. Reject features
+   that pass total but not bull — Fold 2 is the target.
+3. **Collinearity.** max|r| ≤ 0.8 against any FEATURES_V2 column and
+   against each other.
+4. **Add at most 2 features at a time** (learning #12) — avoid the
+   8-features-at-once split-fragmentation that tanked P-ML8.
+5. **FEATURES_V4** = FEATURES_V2 + ≤2 selected funding/OI features.
+6. **Walk-forward.** Same outer 5-fold purged WF (TRAIN_FRAC=0.6, PURGE=1).
+   Run scaled and binary modes; compare against V2 champion (Sharpe +1.583,
+   MaxDD −33.6%) and B&H.
+7. **Per-fold IC inspection.** Primary success criterion is **Fold 2 bull IC
+   improvement**, not just aggregate Sharpe. Aggregate Sharpe can rise from
+   non-Fold-2 folds even if the structural problem is unsolved.
+
+**Decision rule (pre-committed).**
+- Fold 2 bull IC improves (e.g. from −0.128 to ≥ 0) AND outer Sharpe ≥ +1.40
+  → ship FEATURES_V4 as new champion candidate; queue P-ML15b (per-regime tune).
+- Fold 2 bull IC improves but outer Sharpe < +1.40 → useful diagnostic only;
+  log and stay on V2 champion; consider Phase 2.
+- No Fold 2 bull IC improvement → hypothesis rejected; pivot to Phase 2
+  on-chain, or accept Fold 2 as structurally unfixable at daily resolution.
+
+**Open risks.**
+- **Dataset truncation.** Funding/OI may not cover the full 2019 V2 window.
+  Mitigation: re-baseline V2 on the truncated window before comparison.
+- **Timestamp / leakage.** Funding settled at bar t reflects positioning over
+  bar t−1. Need to confirm conventions in the Binance API and shift if needed.
+- **Regime overlap with momentum features.** `funding_rate_zscore_30d` may
+  correlate with `mom_zscore_20` in trending regimes. Collinearity screen
+  catches this; if borderline, choose the one with higher IC_bull.
+
+**Phase 2 (parked, only if Phase 1 promising) — On-chain metrics.**
+Glassnode-style realised cap, MVRV, exchange flows. Heavier data engineering
+(API integration, backfill, alignment). Defer until Phase 1 result is in.
+
+**Estimated effort.** 1 session for data ingestion + IC screen; 1 session for
+WF + reporting. Cadence comparable to P-ML7 / P-ML8.
 
 ### P-ML16. Expanding window walk-forward
 Current rolling window discards early training data as it moves forward.
 Expanding (anchored) window keeps all history. Quick comparison to check
-if more training data improves later folds.
+if more training data improves later folds. Lower priority post-F23 —
+mechanical change unlikely to fix the Fold 2 structural problem.
 
 ### P-ML17. Production pipeline
 Wrap V2-24/7 and V2-weekday into clean strategy classes with:
@@ -300,10 +385,6 @@ Wrap V2-24/7 and V2-weekday into clean strategy classes with:
 The institutional/liquidity/dollar channels (F19) may work at weekly bars
 where weekend alignment is a non-issue. Requires rebuilding the feature matrix
 at weekly frequency and re-running walk-forward.
-
-### P-ML19. On-chain / funding rate features
-Crypto-native data (exchange flows, funding rates, open interest) that doesn't
-have TradFi alignment issues. May help with the Fold 2 problem (crypto-specific events).
 
 ---
 
