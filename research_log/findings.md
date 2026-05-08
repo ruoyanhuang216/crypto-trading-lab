@@ -25,8 +25,13 @@ Each entry references the daily log where it was first observed.
 | F22 | P-ML14 Weekday-only strategy | V2-weekday scaled: Sharpe +1.454, MaxDD −25.9%; V3-weekday: +1.036 | Weekend flat reduces MaxDD but also Sharpe; V3 still loses to V2 |
 | F23 | P-ML15 Optuna tuning of V2-24/7 scaled | Inner-CV Sharpe +1.612, outer-WF Sharpe +0.980 vs defaults +1.583 (Δ −0.604) | **Hypothesis rejected** — hand-picked defaults beat tuned params; classic inner-CV overfit |
 | F24 | P-ML19 Phase 1a funding-rate features | V4 scaled Sharpe +0.775 vs V2 truncated baseline +0.594 (Δ +0.181) on 2020-03→2024-12; **late-cycle bull IC: V2 +0.107 → V4 −0.011** | **H7 rejected** — funding rate hurts targeted Fold 2; secondary insight: V2-truncated already solves Fold 2 (the 2019 training data was the problem) |
+| F25 | P-ML20 sliding-start ablation | Strict-win cutoff `2020-06-01`: Fold-2 bull IC −0.128 → −0.023 (Δ +0.105); 4-fold Sharpe +1.679 vs 5-fold baseline +1.583 | **H8 partially confirmed but refined** — the COVID-shock period (Mar–May 2020) is what hurts the bull model, not "pre-2020 data" generally; new champion candidate but with apples-to-oranges fold-count caveat |
 
 **Current champion: P-ML9 scaled mode (Sharpe +1.583 vs B&H +1.052, MaxDD −33.6% vs B&H −76.6%).**
+
+**Champion candidate (pending validation):** V2-2020-06-cut, 4-fold Sharpe +1.679,
+Fold-2 bull IC −0.023. Apples-to-oranges fold-count caveat means we should
+validate via sample-weighting (P-ML20 part 2) before formally promoting.
 
 Dominant improvement axes confirmed: **regime gating + data volume + feature engineering + position sizing**.
 Scaled positioning closes the MaxDD gap entirely and is the single biggest risk-adjusted improvement.
@@ -34,6 +39,102 @@ Scaled positioning closes the MaxDD gap entirely and is the single biggest risk-
 The P-ML10 risk overlay (DD brake + bull cap) improves binary signals (Sharpe +1.234 → +1.273,
 MaxDD −77.3% → −68.4%) but adds marginal value on top of P-ML9 scaled positioning, which
 already achieves better risk control through the z-score mechanism.
+
+---
+
+## F25 — Sample-window robustness (P-ML20 part 1): COVID shock is the bull-model bug
+**Date:** 2026-05-08 | **Ref:** [2026-05-08](daily/2026-05-08.md) | **Notebook:** `p_ml20_sample_window.ipynb`
+
+Sliding-start ablation: hold V2 6yr outer 5-fold WF schedule fixed; vary the
+training mask by start cutoff. Test bars are unchanged across runs, so per-fold
+metrics are directly comparable. Cutoffs tested: 2019-03 (full V2 baseline),
+2019-06, 2019-09, 2020-01, 2020-03, 2020-06.
+
+**Mechanical observation: cutoff effects are confined to Folds 1–2.**
+The V2 rolling 533-bar training window for Folds 3–5 starts at bar ≥ 533
+(post-2020-08), so any cutoff ≤ 2020-06 leaves Folds 3–5's training
+*identical* across runs. Their per-fold ICs are byte-identical (F3 +0.128,
+F4 +0.054, F5 +0.107) regardless of cutoff. So this experiment is really a
+2-fold experiment (Folds 1 and 2) with the rest of the equity curve held fixed.
+
+**Aggregate results (cutoff × scaled mode):**
+
+| Cutoff | #folds | Scaled Sharpe | Return | MaxDD | Mean IC | ICIR |
+|---|---|---|---|---|---|---|
+| **2019-03 (baseline)** | **5/5** | **+1.583** | **+758.7%** | **−33.6%** | **+0.0740** | **+1.779** |
+| 2019-06 | 5/5 | +1.610 | +813.4% | −33.6% | +0.0770 | +1.838 |
+| 2019-09 | 5/5 | +1.661 | +940.3% | −30.9% | +0.0874 | +2.495 |
+| 2020-01 | 4/5 | +1.410 | +324.7% | −40.3% | +0.0621 | +0.954 |
+| 2020-03 | 4/5 | +1.763 | +531.5% | −28.8% | +0.0782 | +1.889 |
+| **2020-06** | **4/5** | **+1.679** | **+458.0%** | **−29.2%** | **+0.0746** | **+1.612** |
+
+**Per-fold Fold-2 bull IC (the H8 target — apples-to-apples since test bars
+are fixed):**
+
+| Cutoff | Fold-2 Bull IC | Δ vs baseline |
+|---|---|---|
+| 2019-03 (baseline) | −0.128 | — |
+| 2019-06 | −0.128 | 0.000 |
+| 2019-09 | −0.128 | 0.000 |
+| 2020-01 | −0.126 | +0.002 |
+| **2020-03** | **−0.162** | **−0.034** |
+| **2020-06** | **−0.023** | **+0.105** |
+
+The signal is **non-monotonic and discontinuous between 2020-03 and 2020-06**.
+This isolates the responsible bars: **Mar–May 2020 = the COVID crash and
+recovery**. Including those bars in training:
+- *Helps* the overall ensemble's Sharpe (cutoff 2020-03 has the **highest**
+  aggregate Sharpe at +1.763), and
+- *Hurts* the bull sub-model (cutoff 2020-03 has the **worst** Fold-2 bull IC
+  at −0.162).
+
+Removing those bars (cutoff 2020-06):
+- Drops aggregate Sharpe slightly (+1.763 → +1.679) but still beats baseline,
+- Largely repairs Fold-2 bull IC (−0.128 → −0.023, an essentially neutral signal).
+
+**Hypothesis update.** H8 was originally framed as "pre-2020 training data
+degrades the bull model." The refined statement: **the COVID-shock window
+(Mar–May 2020) is the bull-model bug**. Pre-COVID 2019 data is essentially
+inert — bull bars in 2019 are sparse (42 bars, 6.1% of the pre-2020 portion)
+and removing them has zero effect on Fold-2 bull IC (cutoffs 2019-06 and
+2019-09 land at exactly −0.128, identical to baseline).
+
+**Connection to F24.** P-ML19's V2-truncated dataset (start 2020-03)
+showed Fold-2 bull IC of +0.107. P-ML20's cutoff 2020-03 (same start, but
+fixed outer schedule) shows Fold-2 bull IC of −0.162. The +0.270 difference
+between these two "same start date" experiments isolates the
+fold-boundary effect: **with a truncated dataset, the test bars in
+"Fold 2" shift to a different calendar period (Oct 2021 → Jul 2022 in
+P-ML19 vs Feb 2021 → Jan 2022 here)**, and the bull-model behaves very
+differently on those different test bars. So the +0.235 swing in F24 was
+mostly a fold-boundary artefact, with only a small genuine training-data
+effect at the same start. The actionable lever — confirmed here — is the
+2020-06-01 cutoff that drops the COVID shock specifically.
+
+**Caveat (apples-to-oranges).** Cutoffs ≥ 2020-01 skip Fold 1 because
+Fold 1's training window ends 2020-02-18 — entirely before the cutoff.
+The 4-fold Sharpe (+1.679 for 2020-06) is computed on Folds 2–5
+(2021-02 → 2024-12), while the 5-fold baseline Sharpe (+1.583) is
+computed on Folds 1–5 (2020-02 → 2024-12). These cover different
+calendar windows and are not directly comparable as a single-number
+"improvement". The Fold-2 bull IC swing (+0.105) is rigorous; the
+Sharpe swing (+0.096) is suggestive but contaminated.
+
+**Verdict — partial.** Pre-committed strict-win rule fires for cutoff
+2020-06-01: Fold-2 bull IC strictly improved AND aggregate scaled Sharpe
+strictly improved. So under the rule we should adopt it as a champion
+candidate. But the Sharpe-comparison caveat means we should validate via
+**sample-weighting (P-ML20 part 2)** before formally promoting:
+- Soft down-weighting of Mar–May 2020 bars (rather than dropping them) keeps
+  Fold 1 in evaluation and produces a clean 5-fold-vs-5-fold Sharpe.
+- If sample weighting reproduces the Fold-2 bull-IC improvement at similar
+  or better aggregate Sharpe with all 5 folds, we have a clean champion.
+
+**Next:** Run P-ML20 part 2 (sample weighting). Once a clean champion is
+established, re-baseline downstream experiments (P-ML7+ momentum, P-ML9+
+scaled positioning, P-ML10 risk overlay) on the new window. Funding-rate
+features (P-ML19 Phase 1b OI, Phase 2 on-chain) remain parked — F25 confirms
+the bull-failure problem was a training-data issue, not a missing-signal one.
 
 ---
 
