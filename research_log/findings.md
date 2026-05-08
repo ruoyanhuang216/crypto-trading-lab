@@ -24,6 +24,7 @@ Each entry references the daily log where it was first observed.
 | F21 | P-ML13 Unified comparison (V2 vs V3) | V2 wins 4/6 metrics; 7-day V2 scaled Sharpe +1.583 vs V3 +1.360 | **V2 remains champion** — cross-asset features hurt on 7-day data |
 | F22 | P-ML14 Weekday-only strategy | V2-weekday scaled: Sharpe +1.454, MaxDD −25.9%; V3-weekday: +1.036 | Weekend flat reduces MaxDD but also Sharpe; V3 still loses to V2 |
 | F23 | P-ML15 Optuna tuning of V2-24/7 scaled | Inner-CV Sharpe +1.612, outer-WF Sharpe +0.980 vs defaults +1.583 (Δ −0.604) | **Hypothesis rejected** — hand-picked defaults beat tuned params; classic inner-CV overfit |
+| F24 | P-ML19 Phase 1a funding-rate features | V4 scaled Sharpe +0.775 vs V2 truncated baseline +0.594 (Δ +0.181) on 2020-03→2024-12; **late-cycle bull IC: V2 +0.107 → V4 −0.011** | **H7 rejected** — funding rate hurts targeted Fold 2; secondary insight: V2-truncated already solves Fold 2 (the 2019 training data was the problem) |
 
 **Current champion: P-ML9 scaled mode (Sharpe +1.583 vs B&H +1.052, MaxDD −33.6% vs B&H −76.6%).**
 
@@ -33,6 +34,91 @@ Scaled positioning closes the MaxDD gap entirely and is the single biggest risk-
 The P-ML10 risk overlay (DD brake + bull cap) improves binary signals (Sharpe +1.234 → +1.273,
 MaxDD −77.3% → −68.4%) but adds marginal value on top of P-ML9 scaled positioning, which
 already achieves better risk control through the z-score mechanism.
+
+---
+
+## F24 — Funding-rate features (P-ML19 Phase 1a): H7 rejected, but accidental discovery about 2019 training data
+**Date:** 2026-05-08 | **Ref:** [2026-05-08](daily/2026-05-08.md) | **Notebook:** `p_ml19_funding_features.ipynb`
+
+Binance perp BTCUSDT funding rate fetched from `data.binance.vision` archive
+(geo-block on api.binance.com → public S3 archive instead). Coverage starts
+2020-01, forcing dataset truncation from V2's 2019-03 origin to 2020-03 after
+warmup. V2 re-baselined on the same truncated window for apples-to-apples.
+
+**Phase 1a candidates (3 features):**
+
+| Feature | IC_total | p | IC_bull | p | Pass |
+|---|---|---|---|---|---|
+| `funding_3d_mean` | −0.0132 | 0.58 | −0.0072 | 0.86 | no |
+| `funding_zscore_30d` | −0.0342 | 0.15 | +0.0360 | 0.37 | YES |
+| `funding_persistence_3d` | −0.0084 | 0.72 | +0.0080 | 0.84 | no |
+
+Only 1 of 3 passed the |IC| > 0.01 dual-screen, and even that with
+non-significant p-values. None of the candidates are strong signals at
+daily resolution.
+
+**FEATURES_V4 = FEATURES_V2 + funding_zscore_30d (17 features).**
+Walk-forward on truncated 2020-03 → 2024-12 dataset (1,767 bars):
+
+| Config | Sharpe | Return | MaxDD | Mean IC | ICIR |
+|---|---|---|---|---|---|
+| V2 truncated scaled (re-baseline) | +0.594 | +74.5% | −42.8% | +0.0384 | +0.647 |
+| V4 (V2 + funding) scaled | +0.775 | +123.1% | −42.2% | +0.0401 | +0.813 |
+| V2 truncated binary | +0.491 | +56.6% | −73.2% | — | — |
+| V4 binary | +0.090 | −42.8% | −71.4% | — | — |
+| B&H truncated | +1.092 | +997.0% | −76.6% | — | — |
+
+**Per-fold IC (the diagnostic that matters):**
+
+| Fold | Period | V2 IC | V4 IC | V2 Bull IC | V4 Bull IC |
+|---|---|---|---|---|---|
+| 1 | 2020-12 → 2021-10 | −0.020 | −0.012 | −0.054 | −0.048 |
+| **2** | **2021-10 → 2022-07** *(ATH + crash)* | **+0.127** | +0.104 | **+0.107** | **−0.011** |
+| 3 | 2022-07 → 2023-05 | +0.081 | +0.084 | +0.084 | +0.129 |
+| 4 | 2023-05 → 2024-03 | +0.031 | +0.043 | +0.027 | −0.002 |
+| 5 | 2024-03 → 2024-12 | −0.028 | −0.018 | +0.127 | +0.132 |
+
+**Decision (pre-committed in roadmap).**
+- Late-cycle bull IC improved? **NO** (V2 +0.107 → V4 −0.011, Δ −0.117).
+- V4 scaled Sharpe ≥ +1.40? **NO** (actual +0.775).
+- Verdict: **H7 hypothesis REJECTED.** Funding rate did not improve the
+  targeted Fold-2 ATH+crash bull IC; in fact it actively degraded it.
+
+**Two incidental findings worth recording:**
+
+1. **Aggregate scaled Sharpe lift +0.181 is real but cosmetic for the
+   hypothesis.** V4 scaled improves over V2 truncated on aggregate Sharpe
+   (+0.594 → +0.775), but the lift comes from Folds 3–4 (non-target). This
+   matches the F15 pattern: marginal-IC features can disrupt binary signals
+   (V4 binary collapsed +0.491 → +0.090) even while helping scaled mode where
+   z-score positioning down-weights uncertain predictions.
+
+2. **The 2019 training data was the source of the Fold-2 problem, not a
+   missing signal.** V2 6yr (P-ML5/P-ML7/P-ML9 baseline) had Fold-2 bull IC
+   = −0.128. V2 truncated (no 2019) has Fold-2 bull IC = +0.107 — a +0.235
+   swing purely from removing the 2019 recovery / 2020 COVID-shock training
+   bars. That subset evidently teaches the bull model the wrong pattern for
+   the 2021 ATH cycle. **This is more actionable than the funding-rate
+   result.**
+
+**Implication for the roadmap.**
+- Phase 1b (open interest) is parked — P-ML19's premise was that the bull
+  failure mode requires *new signal types*, but F24 shows the failure was
+  primarily a *training-data* issue. New on-chain signals are still
+  worth exploring eventually, but they're not the immediate lever.
+- The new highest-EV experiment is **P-ML20 — sample-window robustness
+  study**: re-run V2 6yr with 2019-only / 2020-only / 2021-only training-set
+  ablations to identify exactly which 2019 bars degrade the bull model.
+  This may justify either dropping pre-2020 training data (champion would
+  become V2-truncated with longer test history once 2025 fills in) or
+  reweighting it.
+- B&H truncated (+1.092) is *not* a fair benchmark since it captures the
+  full 2020-2021 ETF/COVID bull. The right benchmark for V4 is V2-truncated
+  (+0.594), which V4 does beat — but not by enough to ship under the
+  pre-committed rule.
+
+**Next:** Park Phase 1b. Promote P-ML20 (sample-window robustness) to top
+of queue. See updated roadmap.
 
 ---
 
